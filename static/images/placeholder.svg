@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
+  <rect width="200" height="200" fill="#141414"/>
+  <rect x="50" y="70" width="100" height="80" rx="4" fill="none" stroke="#ff1e1e" stroke-width="3"/>
+  <rect x="40" y="60" width="120" height="20" rx="3" fill="none" stroke="#ff1e1e" stroke-width="3"/>
+  <line x1="100" y1="60" x2="100" y2="150" stroke="#ff1e1e" stroke-width="3"/>
+  <path d="M100 60 C100 40 80 30 75 40 C70 50 85 55 100 60" fill="none" stroke="#ffffff" stroke-width="2.5"/>
+  <path d="M100 60 C100 40 120 30 125 40 C130 50 115 55 100 60" fill="none" stroke="#ffffff" stroke-width="2.5"/>
+  <text x="100" y="180" text-anchor="middle" fill="#aaaaaa" font-family="system-ui" font-size="12">Image non disponible</text>
+</svg>
