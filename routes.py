@@ -2,6 +2,7 @@
 
 import json
 import os
+from datetime import datetime, timezone
 import database
 
 ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "windrop-admin-2024")
@@ -19,14 +20,33 @@ def check_admin_auth(headers):
     return token == ADMIN_TOKEN
 
 
+def auto_expire_giveaways():
+    """Check all active giveaways and expire any with past end_time."""
+    giveaways = database.get_all_giveaways(status_filter="active")
+    now = datetime.now(timezone.utc)
+    for g in giveaways:
+        if g.get("end_time"):
+            try:
+                end_time = datetime.fromisoformat(g["end_time"])
+                # Add UTC timezone if naive
+                if end_time.tzinfo is None:
+                    end_time = end_time.replace(tzinfo=timezone.utc)
+                if end_time < now:
+                    database.update_giveaway(g["id"], {"status": "expired"})
+            except (ValueError, TypeError):
+                pass
+
+
 def handle_get_giveaways(path_parts, body, headers=None):
     """GET /api/giveaways - list active giveaways."""
+    auto_expire_giveaways()
     giveaways = database.get_all_giveaways(status_filter="active")
     return (200, giveaways)
 
 
 def handle_get_giveaway(path_parts, body, headers=None):
     """GET /api/giveaways/{id} - single giveaway detail."""
+    auto_expire_giveaways()
     giveaway_id = int(path_parts[2])
     giveaway = database.get_giveaway(giveaway_id)
     if not giveaway:
@@ -44,6 +64,17 @@ def handle_participate(path_parts, body, headers=None):
 
     if giveaway["status"] != "active":
         return (400, {"error": "Giveaway is no longer active"})
+
+    # Check if end_time has passed
+    if giveaway.get("end_time"):
+        try:
+            end_time = datetime.fromisoformat(giveaway["end_time"])
+            if end_time.tzinfo is None:
+                end_time = end_time.replace(tzinfo=timezone.utc)
+            if end_time < datetime.now(timezone.utc):
+                return (400, {"error": "Ce giveaway est termine"})
+        except (ValueError, TypeError):
+            pass
 
     # Enforce max_participants
     max_p = giveaway.get("max_participants")
@@ -160,10 +191,27 @@ def handle_admin_update_shipping(path_parts, body, headers=None):
     return (200, updated)
 
 
+def handle_admin_delete_giveaway(path_parts, body, headers=None):
+    """DELETE /api/admin/giveaways/{id} - delete a giveaway."""
+    giveaway_id = int(path_parts[3])
+
+    deleted = database.delete_giveaway(giveaway_id)
+    if not deleted:
+        return (404, {"error": "Giveaway not found"})
+
+    return (200, {"message": "Giveaway supprime"})
+
+
 def handle_admin_list_giveaways(path_parts, body, headers=None):
     """GET /api/admin/giveaways - list ALL giveaways."""
     giveaways = database.get_all_giveaways()
     return (200, giveaways)
+
+
+def handle_admin_get_messages(path_parts, body, headers=None):
+    """GET /api/admin/messages - list all contact messages."""
+    messages = database.get_all_contact_messages()
+    return (200, messages)
 
 
 def handle_admin_get_participants(path_parts, body, headers=None):
@@ -230,6 +278,10 @@ def route_request(method, path_parts, body, headers=None):
         if method == "GET" and path_str == "api/admin/giveaways":
             return handle_admin_list_giveaways(path_parts, body, headers)
 
+        # GET /api/admin/messages
+        if method == "GET" and path_str == "api/admin/messages":
+            return handle_admin_get_messages(path_parts, body, headers)
+
         # POST /api/admin/giveaways
         if method == "POST" and path_str == "api/admin/giveaways":
             return handle_admin_create_giveaway(path_parts, body, headers)
@@ -243,6 +295,14 @@ def route_request(method, path_parts, body, headers=None):
             try:
                 int(path_parts[3])
                 return handle_admin_update_giveaway(path_parts, body, headers)
+            except (ValueError, IndexError):
+                pass
+
+        # DELETE /api/admin/giveaways/{id}
+        if method == "DELETE" and len(path_parts) == 4 and path_parts[2] == "giveaways":
+            try:
+                int(path_parts[3])
+                return handle_admin_delete_giveaway(path_parts, body, headers)
             except (ValueError, IndexError):
                 pass
 

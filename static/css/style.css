@@ -856,3 +856,18 @@ input, textarea, select { font-family: inherit; }
   .container { padding: 0 2rem; }
   .hero h1 { font-size: 3.5rem; }
 }
+
+/* Admin status badges */
+.status-badge { padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.8rem; font-weight: 600; }
+.status-active { background: rgba(0, 200, 83, 0.2); color: #00c853; }
+.status-expired { background: rgba(255, 152, 0, 0.2); color: #ff9800; }
+.status-ended { background: rgba(158, 158, 158, 0.2); color: #9e9e9e; }
+
+/* Admin buttons */
+.btn-sm { padding: 0.3rem 0.6rem; font-size: 0.75rem; border-radius: 4px; }
+.btn-warning { background: #ff9800; color: #fff; }
+.btn-warning:hover { background: #f57c00; }
+.btn-danger { background: var(--accent-red); color: #fff; }
+.btn-danger:hover { background: var(--accent-red-dark); }
+.mb-2 { margin-bottom: 1rem; }
+.mt-3 { margin-top: 2rem; }
