@@ -1,11 +1,12 @@
 """SQLite database module for Windrop giveaway platform."""
 
+import os
 import sqlite3
 import secrets
 from datetime import datetime, timezone
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "windrop.db"
+DB_PATH = Path(os.environ.get("WINDROP_DB_PATH", str(Path(__file__).parent / "windrop.db")))
 
 
 def get_connection():
