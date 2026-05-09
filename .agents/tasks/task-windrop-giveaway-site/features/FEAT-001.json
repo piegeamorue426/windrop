@@ -1,0 +1,34 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Build the complete Python backend server with SQLite database, REST API for giveaways, users, tickets, winners, and admin operations. Includes the database schema, all API endpoints, payment simulation, random draw system, and static file serving.",
+  "status": "in_progress",
+  "steps": [
+    "Create /projects/sandbox/windrop/database.py - SQLite database module with schema for: giveaways (id, title, description, image_url, price, source_url, condition, max_participants, current_participants, end_time, status, winner_id, created_at), users (id, username, email, created_at), tickets (id, user_id, giveaway_id, payment_status, created_at), winners (id, giveaway_id, user_id, ticket_id, drawn_at, shipping_status, shipping_proof_url). Include init_db() function, and helper functions for CRUD operations.",
+    "Create /projects/sandbox/windrop/routes.py - API route handlers module with: GET /api/giveaways (list active giveaways), GET /api/giveaways/:id (single giveaway detail), POST /api/giveaways/:id/participate (simulate payment + create ticket), GET /api/winners (list past winners with shipping status), GET /api/stats (total giveaways, total participants, total winners), POST /api/admin/giveaways (create giveaway), PUT /api/admin/giveaways/:id (update giveaway), POST /api/admin/giveaways/:id/draw (perform random draw using secrets module), PUT /api/admin/winners/:id/shipping (update shipping status/proof). All responses in JSON format.",
+    "Create /projects/sandbox/windrop/server.py - Main HTTP server using http.server module. Must: parse URL routes, handle CORS, serve static files from /static/ directory, delegate API calls to routes.py, handle JSON request/response, run on port 8080. Include proper error handling and logging.",
+    "Create /projects/sandbox/windrop/seed_data.py - Script to populate database with sample giveaways (keyboard, headset, mouse, webcam, etc.) with realistic data, sample users, and a couple of past winners for demonstration purposes.",
+    "Create /projects/sandbox/windrop/tests/test_database.py - Unit tests for database operations using unittest: test creating giveaways, creating tickets, performing draws, listing winners.",
+    "Create /projects/sandbox/windrop/tests/__init__.py - Empty init file for test package."
+  ],
+  "acceptance_criteria": [
+    "Running python3 server.py starts an HTTP server on port 8080 without errors",
+    "GET /api/giveaways returns JSON array of giveaways after seeding",
+    "GET /api/giveaways/1 returns a single giveaway object",
+    "POST /api/giveaways/1/participate creates a ticket and increments participant count",
+    "POST /api/admin/giveaways/1/draw selects a random winner from participants",
+    "GET /api/winners returns array of winners with shipping info",
+    "python3 -m unittest discover tests/ passes all tests"
+  ],
+  "verification": [
+    "python3 /projects/sandbox/windrop/seed_data.py (seed the database)",
+    "Start server: python3 /projects/sandbox/windrop/server.py & (background)",
+    "curl -s http://localhost:8080/api/giveaways | python3 -m json.tool (verify JSON response with giveaways)",
+    "curl -s http://localhost:8080/api/giveaways/1 | python3 -m json.tool (verify single giveaway)",
+    "curl -s -X POST http://localhost:8080/api/giveaways/1/participate -d '{\"username\":\"testuser\",\"email\":\"test@test.com\"}' | python3 -m json.tool (verify participation)",
+    "python3 -m unittest discover /projects/sandbox/windrop/tests/ (run unit tests)",
+    "Kill background server"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

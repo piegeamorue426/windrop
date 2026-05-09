@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+*.pyo
+windrop.db
+tests/test_windrop.db
+*.db
