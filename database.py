@@ -347,6 +347,25 @@ def get_stats():
     }
 
 
+def delete_giveaway(giveaway_id):
+    """Delete a giveaway and all associated tickets and winners.
+
+    Returns True if the giveaway existed and was deleted, False otherwise.
+    """
+    conn = get_connection()
+    cursor = conn.execute("SELECT id FROM giveaways WHERE id = ?", (giveaway_id,))
+    if not cursor.fetchone():
+        conn.close()
+        return False
+
+    conn.execute("DELETE FROM winners WHERE giveaway_id = ?", (giveaway_id,))
+    conn.execute("DELETE FROM tickets WHERE giveaway_id = ?", (giveaway_id,))
+    conn.execute("DELETE FROM giveaways WHERE id = ?", (giveaway_id,))
+    conn.commit()
+    conn.close()
+    return True
+
+
 def create_contact_message(name, email, message):
     """Store a contact form message in the database."""
     conn = get_connection()

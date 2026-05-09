@@ -86,7 +86,8 @@
                 '<td data-label="Statut"><span class="status-badge status-' + esc(g.status) + '">' + esc(g.status) + '</span></td>' +
                 '<td data-label="Actions">' +
                   (g.status === 'active' ? '<button class="btn btn-sm btn-primary" onclick="window.adminDraw(' + g.id + ')">Tirage</button> ' : '') +
-                  '<button class="btn btn-sm btn-secondary" onclick="window.adminViewParticipants(' + g.id + ')">Voir</button>' +
+                  '<button class="btn btn-sm btn-secondary" onclick="window.adminViewParticipants(' + g.id + ')">Voir</button> ' +
+                  '<button class="btn btn-sm" style="background:var(--accent-red);color:#fff" onclick="window.adminDeleteGiveaway(' + g.id + ')">Supprimer</button>' +
                 '</td>' +
               '</tr>'
             ).join('') +
@@ -184,6 +185,16 @@
     try {
       const result = await adminApi('/api/admin/giveaways/' + giveawayId + '/draw', { method: 'POST', body: '{}' });
       alert('Gagnant tire : ' + esc(result.winner ? result.winner.username || 'ID ' + result.winner.user_id : 'inconnu'));
+      renderAdminList();
+    } catch (err) {
+      alert('Erreur: ' + err.message);
+    }
+  };
+
+  window.adminDeleteGiveaway = async function(giveawayId) {
+    if (!confirm('Supprimer ce giveaway ? Cette action est irreversible.')) return;
+    try {
+      await adminApi('/api/admin/giveaways/' + giveawayId, { method: 'DELETE' });
       renderAdminList();
     } catch (err) {
       alert('Erreur: ' + err.message);

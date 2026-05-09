@@ -160,6 +160,17 @@ def handle_admin_update_shipping(path_parts, body, headers=None):
     return (200, updated)
 
 
+def handle_admin_delete_giveaway(path_parts, body, headers=None):
+    """DELETE /api/admin/giveaways/{id} - delete a giveaway."""
+    giveaway_id = int(path_parts[3])
+
+    deleted = database.delete_giveaway(giveaway_id)
+    if not deleted:
+        return (404, {"error": "Giveaway not found"})
+
+    return (200, {"message": "Giveaway supprime"})
+
+
 def handle_admin_list_giveaways(path_parts, body, headers=None):
     """GET /api/admin/giveaways - list ALL giveaways."""
     giveaways = database.get_all_giveaways()
@@ -243,6 +254,14 @@ def route_request(method, path_parts, body, headers=None):
             try:
                 int(path_parts[3])
                 return handle_admin_update_giveaway(path_parts, body, headers)
+            except (ValueError, IndexError):
+                pass
+
+        # DELETE /api/admin/giveaways/{id}
+        if method == "DELETE" and len(path_parts) == 4 and path_parts[2] == "giveaways":
+            try:
+                int(path_parts[3])
+                return handle_admin_delete_giveaway(path_parts, body, headers)
             except (ValueError, IndexError):
                 pass
 
