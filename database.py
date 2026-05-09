@@ -75,6 +75,16 @@ def init_db():
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS contact_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT NOT NULL,
+            message TEXT NOT NULL,
+            created_at TEXT
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -192,8 +202,21 @@ def get_or_create_user(username, email):
 
 
 def create_ticket(user_id, giveaway_id):
-    """Create a ticket for a user in a giveaway."""
+    """Create a ticket for a user in a giveaway.
+
+    Raises ValueError if user already has a ticket for this giveaway.
+    """
     conn = get_connection()
+
+    # Check for duplicate participation
+    cursor = conn.execute(
+        "SELECT id FROM tickets WHERE user_id = ? AND giveaway_id = ?",
+        (user_id, giveaway_id)
+    )
+    if cursor.fetchone():
+        conn.close()
+        raise ValueError("Duplicate participation")
+
     now = datetime.utcnow().isoformat()
     cursor = conn.execute(
         "INSERT INTO tickets (user_id, giveaway_id, payment_status, created_at) VALUES (?, ?, 'completed', ?)",
@@ -322,3 +345,17 @@ def get_stats():
         "total_participants": total_participants,
         "total_winners": total_winners
     }
+
+
+def create_contact_message(name, email, message):
+    """Store a contact form message in the database."""
+    conn = get_connection()
+    now = datetime.utcnow().isoformat()
+    cursor = conn.execute(
+        "INSERT INTO contact_messages (name, email, message, created_at) VALUES (?, ?, ?, ?)",
+        (name, email, message, now)
+    )
+    msg_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return {"id": msg_id, "name": name, "email": email, "message": message, "created_at": now}

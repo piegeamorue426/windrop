@@ -111,8 +111,11 @@ class RequestHandler(BaseHTTPRequestHandler):
         if method in ("POST", "PUT"):
             body = self.read_body()
 
+        # Pass headers as a dict to route_request for auth checks
+        headers = {key: self.headers[key] for key in self.headers}
+
         try:
-            status_code, response_data = routes.route_request(method, parts, body)
+            status_code, response_data = routes.route_request(method, parts, body, headers)
             self.send_json_response(status_code, response_data)
         except Exception as e:
             print(f"Error handling {method} {path}: {e}")

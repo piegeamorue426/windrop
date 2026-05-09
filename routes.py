@@ -1,16 +1,31 @@
 """API route handlers for Windrop giveaway platform."""
 
 import json
+import os
 import database
 
+ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "windrop-admin-2024")
 
-def handle_get_giveaways(path_parts, body):
+
+def check_admin_auth(headers):
+    """Check that the request includes a valid admin token.
+
+    Returns True if authorized, False otherwise.
+    """
+    auth_header = headers.get("Authorization", "") if headers else ""
+    if not auth_header.startswith("Bearer "):
+        return False
+    token = auth_header[len("Bearer "):]
+    return token == ADMIN_TOKEN
+
+
+def handle_get_giveaways(path_parts, body, headers=None):
     """GET /api/giveaways - list active giveaways."""
     giveaways = database.get_all_giveaways(status_filter="active")
     return (200, giveaways)
 
 
-def handle_get_giveaway(path_parts, body):
+def handle_get_giveaway(path_parts, body, headers=None):
     """GET /api/giveaways/{id} - single giveaway detail."""
     giveaway_id = int(path_parts[2])
     giveaway = database.get_giveaway(giveaway_id)
@@ -19,7 +34,7 @@ def handle_get_giveaway(path_parts, body):
     return (200, giveaway)
 
 
-def handle_participate(path_parts, body):
+def handle_participate(path_parts, body, headers=None):
     """POST /api/giveaways/{id}/participate - create ticket for user."""
     giveaway_id = int(path_parts[2])
 
@@ -30,6 +45,11 @@ def handle_participate(path_parts, body):
     if giveaway["status"] != "active":
         return (400, {"error": "Giveaway is no longer active"})
 
+    # Enforce max_participants
+    max_p = giveaway.get("max_participants")
+    if max_p and max_p > 0 and giveaway["current_participants"] >= max_p:
+        return (400, {"error": "Giveaway complet"})
+
     if not body or "username" not in body or "email" not in body:
         return (400, {"error": "username and email are required"})
 
@@ -37,7 +57,11 @@ def handle_participate(path_parts, body):
     email = body["email"]
 
     user = database.get_or_create_user(username, email)
-    ticket = database.create_ticket(user["id"], giveaway_id)
+
+    try:
+        ticket = database.create_ticket(user["id"], giveaway_id)
+    except ValueError:
+        return (400, {"error": "Vous participez deja a ce giveaway"})
 
     return (201, {
         "ticket": ticket,
@@ -46,19 +70,38 @@ def handle_participate(path_parts, body):
     })
 
 
-def handle_get_winners(path_parts, body):
+def handle_get_winners(path_parts, body, headers=None):
     """GET /api/winners - list past winners."""
     winners = database.get_winners()
     return (200, winners)
 
 
-def handle_get_stats(path_parts, body):
+def handle_get_stats(path_parts, body, headers=None):
     """GET /api/stats - platform statistics."""
     stats = database.get_stats()
     return (200, stats)
 
 
-def handle_admin_create_giveaway(path_parts, body):
+def handle_contact(path_parts, body, headers=None):
+    """POST /api/contact - store a contact form message."""
+    if not body:
+        return (400, {"error": "Request body is required"})
+
+    name = body.get("name", "").strip()
+    email = body.get("email", "").strip()
+    message = body.get("message", "").strip()
+
+    if not name or not email or not message:
+        return (400, {"error": "name, email, and message are required"})
+
+    if "@" not in email:
+        return (400, {"error": "Invalid email address"})
+
+    result = database.create_contact_message(name, email, message)
+    return (201, {"message": "Message envoye avec succes", "id": result["id"]})
+
+
+def handle_admin_create_giveaway(path_parts, body, headers=None):
     """POST /api/admin/giveaways - create new giveaway."""
     if not body or "title" not in body:
         return (400, {"error": "title is required"})
@@ -67,7 +110,7 @@ def handle_admin_create_giveaway(path_parts, body):
     return (201, giveaway)
 
 
-def handle_admin_update_giveaway(path_parts, body):
+def handle_admin_update_giveaway(path_parts, body, headers=None):
     """PUT /api/admin/giveaways/{id} - update giveaway."""
     giveaway_id = int(path_parts[3])
 
@@ -82,7 +125,7 @@ def handle_admin_update_giveaway(path_parts, body):
     return (200, updated)
 
 
-def handle_admin_draw_winner(path_parts, body):
+def handle_admin_draw_winner(path_parts, body, headers=None):
     """POST /api/admin/giveaways/{id}/draw - perform random draw."""
     giveaway_id = int(path_parts[3])
 
@@ -100,7 +143,7 @@ def handle_admin_draw_winner(path_parts, body):
     return (200, {"winner": winner, "message": "Winner drawn successfully!"})
 
 
-def handle_admin_update_shipping(path_parts, body):
+def handle_admin_update_shipping(path_parts, body, headers=None):
     """PUT /api/admin/winners/{id}/shipping - update shipping status."""
     winner_id = int(path_parts[3])
 
@@ -117,13 +160,13 @@ def handle_admin_update_shipping(path_parts, body):
     return (200, updated)
 
 
-def handle_admin_list_giveaways(path_parts, body):
+def handle_admin_list_giveaways(path_parts, body, headers=None):
     """GET /api/admin/giveaways - list ALL giveaways."""
     giveaways = database.get_all_giveaways()
     return (200, giveaways)
 
 
-def handle_admin_get_participants(path_parts, body):
+def handle_admin_get_participants(path_parts, body, headers=None):
     """GET /api/admin/giveaways/{id}/participants - list participants."""
     giveaway_id = int(path_parts[3])
 
@@ -135,7 +178,7 @@ def handle_admin_get_participants(path_parts, body):
     return (200, participants)
 
 
-def route_request(method, path_parts, body):
+def route_request(method, path_parts, body, headers=None):
     """Route a request to the appropriate handler.
 
     Path parts are split from URL like:
@@ -152,55 +195,63 @@ def route_request(method, path_parts, body):
     # Public API routes
     # GET /api/giveaways
     if method == "GET" and path_str == "api/giveaways":
-        return handle_get_giveaways(path_parts, body)
+        return handle_get_giveaways(path_parts, body, headers)
 
     # GET /api/giveaways/{id}
     if method == "GET" and len(path_parts) == 3 and path_parts[0] == "api" and path_parts[1] == "giveaways":
         try:
             int(path_parts[2])
-            return handle_get_giveaway(path_parts, body)
+            return handle_get_giveaway(path_parts, body, headers)
         except (ValueError, IndexError):
             pass
 
     # POST /api/giveaways/{id}/participate
     if method == "POST" and len(path_parts) == 4 and path_parts[0] == "api" and path_parts[1] == "giveaways" and path_parts[3] == "participate":
-        return handle_participate(path_parts, body)
+        return handle_participate(path_parts, body, headers)
 
     # GET /api/winners
     if method == "GET" and path_str == "api/winners":
-        return handle_get_winners(path_parts, body)
+        return handle_get_winners(path_parts, body, headers)
 
     # GET /api/stats
     if method == "GET" and path_str == "api/stats":
-        return handle_get_stats(path_parts, body)
+        return handle_get_stats(path_parts, body, headers)
 
-    # Admin API routes
-    # GET /api/admin/giveaways
-    if method == "GET" and path_str == "api/admin/giveaways":
-        return handle_admin_list_giveaways(path_parts, body)
+    # POST /api/contact
+    if method == "POST" and path_str == "api/contact":
+        return handle_contact(path_parts, body, headers)
 
-    # POST /api/admin/giveaways
-    if method == "POST" and path_str == "api/admin/giveaways":
-        return handle_admin_create_giveaway(path_parts, body)
+    # Admin API routes - require authentication
+    if len(path_parts) >= 2 and path_parts[1] == "admin":
+        if not check_admin_auth(headers):
+            return (401, {"error": "Unauthorized"})
 
-    # GET /api/admin/giveaways/{id}/participants
-    if method == "GET" and len(path_parts) == 5 and path_parts[1] == "admin" and path_parts[2] == "giveaways" and path_parts[4] == "participants":
-        return handle_admin_get_participants(path_parts, body)
+        # GET /api/admin/giveaways
+        if method == "GET" and path_str == "api/admin/giveaways":
+            return handle_admin_list_giveaways(path_parts, body, headers)
 
-    # PUT /api/admin/giveaways/{id}
-    if method == "PUT" and len(path_parts) == 4 and path_parts[1] == "admin" and path_parts[2] == "giveaways":
-        try:
-            int(path_parts[3])
-            return handle_admin_update_giveaway(path_parts, body)
-        except (ValueError, IndexError):
-            pass
+        # POST /api/admin/giveaways
+        if method == "POST" and path_str == "api/admin/giveaways":
+            return handle_admin_create_giveaway(path_parts, body, headers)
 
-    # POST /api/admin/giveaways/{id}/draw
-    if method == "POST" and len(path_parts) == 5 and path_parts[1] == "admin" and path_parts[2] == "giveaways" and path_parts[4] == "draw":
-        return handle_admin_draw_winner(path_parts, body)
+        # GET /api/admin/giveaways/{id}/participants
+        if method == "GET" and len(path_parts) == 5 and path_parts[2] == "giveaways" and path_parts[4] == "participants":
+            return handle_admin_get_participants(path_parts, body, headers)
 
-    # PUT /api/admin/winners/{id}/shipping
-    if method == "PUT" and len(path_parts) == 5 and path_parts[1] == "admin" and path_parts[2] == "winners" and path_parts[4] == "shipping":
-        return handle_admin_update_shipping(path_parts, body)
+        # PUT /api/admin/giveaways/{id}
+        if method == "PUT" and len(path_parts) == 4 and path_parts[2] == "giveaways":
+            try:
+                int(path_parts[3])
+                return handle_admin_update_giveaway(path_parts, body, headers)
+            except (ValueError, IndexError):
+                pass
+
+        # POST /api/admin/giveaways/{id}/draw
+        if method == "POST" and len(path_parts) == 5 and path_parts[2] == "giveaways" and path_parts[4] == "draw":
+            return handle_admin_draw_winner(path_parts, body, headers)
+
+        # PUT /api/admin/winners/{id}/shipping
+        if method == "PUT" and len(path_parts) == 5 and path_parts[2] == "winners" and path_parts[4] == "shipping":
+            return handle_admin_update_shipping(path_parts, body, headers)
 
     return (404, {"error": "Not found"})

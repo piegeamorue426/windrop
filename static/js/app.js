@@ -2,6 +2,20 @@
 (function() {
   'use strict';
 
+  // HTML Escape utility to prevent XSS
+  function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  // Make escapeHtml available globally for admin.js
+  window.escapeHtml = escapeHtml;
+
   // Router
   const routes = {
     '/': renderHome,
@@ -118,18 +132,18 @@
 
   // Card HTML Generator
   function giveawayCard(g) {
-    const imgSrc = g.image_url || '/static/images/placeholder.svg';
-    const ended = g.status === 'ended';
-    return '<div class="card" onclick="location.hash='#/giveaway/' + g.id + ''" style="cursor:pointer">' +
+    var imgSrc = escapeHtml(g.image_url || '/static/images/placeholder.svg');
+    var ended = g.status === 'ended';
+    return '<div class="card" onclick="location.hash=\'#/giveaway/' + escapeHtml(g.id) + '\'" style="cursor:pointer">' +
       (ended ? '<span class="badge-ended">Termine</span>' : '') +
-      '<img class="card-image" src="' + imgSrc + '" alt="' + g.title + '" onerror="this.src='/static/images/placeholder.svg'">' +
+      '<img class="card-image" src="' + imgSrc + '" alt="' + escapeHtml(g.title) + '" onerror="this.src=\'/static/images/placeholder.svg\'">' +
       '<div class="card-body">' +
-        '<h3 class="card-title">' + g.title + '</h3>' +
-        '<span class="card-price">' + (g.price || 0) + ' EUR</span>' +
+        '<h3 class="card-title">' + escapeHtml(g.title) + '</h3>' +
+        '<span class="card-price">' + escapeHtml(g.price || 0) + ' EUR</span>' +
         '<div class="card-meta">' +
-          '<span class="card-participants">' + (g.current_participants || 0) + ' participants</span>' +
+          '<span class="card-participants">' + escapeHtml(g.current_participants || 0) + ' participants</span>' +
           (ended ? '<span class="card-countdown">Termine</span>' :
-            '<span class="card-countdown" data-end-time="' + (g.end_time || '') + '">' + formatCountdown(g.end_time) + '</span>') +
+            '<span class="card-countdown" data-end-time="' + escapeHtml(g.end_time || '') + '">' + escapeHtml(formatCountdown(g.end_time)) + '</span>') +
         '</div>' +
       '</div>' +
     '</div>';
@@ -155,9 +169,9 @@
             '<p>Participez a nos giveaways pour seulement 1 euro. Tirage au sort transparent et livraison garantie.</p>' +
             '<a href="#/giveaways" class="btn btn-primary">Voir les giveaways</a>' +
             '<div class="hero-stats">' +
-              '<div class="stat-item"><div class="stat-number" data-target="' + (stats.total_giveaways || 0) + '">0</div><div class="stat-label">Giveaways</div></div>' +
-              '<div class="stat-item"><div class="stat-number" data-target="' + (stats.total_participants || 0) + '">0</div><div class="stat-label">Participants</div></div>' +
-              '<div class="stat-item"><div class="stat-number" data-target="' + (stats.total_winners || 0) + '">0</div><div class="stat-label">Gagnants</div></div>' +
+              '<div class="stat-item"><div class="stat-number" data-target="' + escapeHtml(stats.total_giveaways || 0) + '">0</div><div class="stat-label">Giveaways</div></div>' +
+              '<div class="stat-item"><div class="stat-number" data-target="' + escapeHtml(stats.total_participants || 0) + '">0</div><div class="stat-label">Participants</div></div>' +
+              '<div class="stat-item"><div class="stat-number" data-target="' + escapeHtml(stats.total_winners || 0) + '">0</div><div class="stat-label">Gagnants</div></div>' +
             '</div>' +
           '</section>' +
           '<section class="featured-section container">' +
@@ -175,7 +189,7 @@
       });
       startCountdowns();
     } catch (err) {
-      app.innerHTML = '<div class="error-msg">Erreur de chargement: ' + err.message + '</div>';
+      app.innerHTML = '<div class="error-msg">Erreur de chargement: ' + escapeHtml(err.message) + '</div>';
     }
   }
 
@@ -198,7 +212,7 @@
         '</div>';
       startCountdowns();
     } catch (err) {
-      app.innerHTML = '<div class="error-msg">Erreur: ' + err.message + '</div>';
+      app.innerHTML = '<div class="error-msg">Erreur: ' + escapeHtml(err.message) + '</div>';
     }
   }
 
@@ -209,22 +223,22 @@
 
     try {
       const g = await api('/api/giveaways/' + id);
-      const imgSrc = g.image_url || '/static/images/placeholder.svg';
-      const ended = g.status === 'ended';
+      var imgSrc = escapeHtml(g.image_url || '/static/images/placeholder.svg');
+      var ended = g.status === 'ended';
 
       app.innerHTML =
         '<div class="page container detail-page">' +
           '<div class="detail-header">' +
-            '<img class="detail-image" src="' + imgSrc + '" alt="' + g.title + '" onerror="this.src='/static/images/placeholder.svg'">' +
+            '<img class="detail-image" src="' + imgSrc + '" alt="' + escapeHtml(g.title) + '" onerror="this.src=\'/static/images/placeholder.svg\'">' +
             '<div class="detail-info">' +
-              '<h1>' + g.title + '</h1>' +
-              '<p>' + (g.description || 'Aucune description disponible.') + '</p>' +
-              (g.source_url ? '<p><a href="' + g.source_url + '" target="_blank">Voir le produit original</a></p>' : '') +
-              (g.condition ? '<p style="color:var(--text-secondary)">Etat: ' + g.condition + '</p>' : '') +
+              '<h1>' + escapeHtml(g.title) + '</h1>' +
+              '<p>' + escapeHtml(g.description || 'Aucune description disponible.') + '</p>' +
+              (g.source_url ? '<p><a href="' + escapeHtml(g.source_url) + '" target="_blank">Voir le produit original</a></p>' : '') +
+              (g.condition ? '<p style="color:var(--text-secondary)">Etat: ' + escapeHtml(g.condition) + '</p>' : '') +
               '<div class="detail-stats">' +
-                '<div class="detail-stat"><div class="detail-stat-value">' + (g.price || 0) + ' EUR</div><div class="detail-stat-label">Valeur</div></div>' +
-                '<div class="detail-stat"><div class="detail-stat-value">' + (g.current_participants || 0) + '</div><div class="detail-stat-label">Participants</div></div>' +
-                '<div class="detail-stat"><div class="detail-stat-value" ' + (!ended ? 'data-end-time="' + g.end_time + '"' : '') + '>' + (ended ? 'Termine' : formatCountdown(g.end_time)) + '</div><div class="detail-stat-label">Temps restant</div></div>' +
+                '<div class="detail-stat"><div class="detail-stat-value">' + escapeHtml(g.price || 0) + ' EUR</div><div class="detail-stat-label">Valeur</div></div>' +
+                '<div class="detail-stat"><div class="detail-stat-value">' + escapeHtml(g.current_participants || 0) + '</div><div class="detail-stat-label">Participants</div></div>' +
+                '<div class="detail-stat"><div class="detail-stat-value" ' + (!ended ? 'data-end-time="' + escapeHtml(g.end_time) + '"' : '') + '>' + (ended ? 'Termine' : escapeHtml(formatCountdown(g.end_time))) + '</div><div class="detail-stat-label">Temps restant</div></div>' +
               '</div>' +
               (!ended ? '<button class="btn btn-primary" onclick="window.showParticipateModal(' + g.id + ')">Participer - 1 euro</button>' :
                 '<button class="btn btn-secondary" disabled>Giveaway termine</button>') +
@@ -255,7 +269,7 @@
       '<div class="modal">' +
         '<h2>Participer au giveaway</h2>' +
         '<p>Entrez vos informations pour participer (1 euro)</p>' +
-        '<div class="form-group"><label>Nom d'utilisateur</label><input type="text" id="modal-username" placeholder="Votre pseudo"></div>' +
+        '<div class="form-group"><label>Nom d\'utilisateur</label><input type="text" id="modal-username" placeholder="Votre pseudo"></div>' +
         '<div class="form-group"><label>Email</label><input type="email" id="modal-email" placeholder="votre@email.com"></div>' +
         '<div id="modal-error" class="form-error" style="display:none"></div>' +
         '<div id="modal-success" style="display:none"></div>' +
@@ -293,7 +307,7 @@
           method: 'POST',
           body: JSON.stringify({ username: username, email: email })
         });
-        successEl.innerHTML = '<div class="success-msg">Participation confirmee ! Bonne chance ' + username + ' !</div>';
+        successEl.innerHTML = '<div class="success-msg">Participation confirmee ! Bonne chance ' + escapeHtml(username) + ' !</div>';
         successEl.style.display = 'block';
         overlay.querySelector('.modal-actions').style.display = 'none';
         setTimeout(() => { overlay.remove(); handleRoute(); }, 2500);
@@ -319,19 +333,19 @@
           '<p class="section-subtitle">Ils ont tente leur chance et gagne</p>' +
           '<div class="card-grid">' +
             (list.length > 0 ? list.map(w => {
-              const statusClass = w.shipping_status === 'delivered' ? 'shipping-delivered' : (w.shipping_status === 'shipped' ? 'shipping-shipped' : 'shipping-pending');
-              const statusText = w.shipping_status === 'delivered' ? 'Livre' : (w.shipping_status === 'shipped' ? 'Expedie' : 'En preparation');
+              var statusClass = w.shipping_status === 'delivered' ? 'shipping-delivered' : (w.shipping_status === 'shipped' ? 'shipping-shipped' : 'shipping-pending');
+              var statusText = w.shipping_status === 'delivered' ? 'Livre' : (w.shipping_status === 'shipped' ? 'Expedie' : 'En preparation');
               return '<div class="winner-card">' +
-                '<div class="winner-username">' + (w.username || 'Anonyme') + '</div>' +
-                '<div class="winner-product">' + (w.giveaway_title || 'Produit') + '</div>' +
-                '<div class="winner-date">' + (w.drawn_at ? new Date(w.drawn_at).toLocaleDateString('fr-FR') : '') + '</div>' +
-                '<span class="shipping-badge ' + statusClass + '">' + statusText + '</span>' +
+                '<div class="winner-username">' + escapeHtml(w.username || 'Anonyme') + '</div>' +
+                '<div class="winner-product">' + escapeHtml(w.giveaway_title || 'Produit') + '</div>' +
+                '<div class="winner-date">' + escapeHtml(w.drawn_at ? new Date(w.drawn_at).toLocaleDateString('fr-FR') : '') + '</div>' +
+                '<span class="shipping-badge ' + statusClass + '">' + escapeHtml(statusText) + '</span>' +
               '</div>';
             }).join('') : '<p class="text-center" style="color:var(--text-secondary)">Aucun gagnant pour le moment</p>') +
           '</div>' +
         '</div>';
     } catch (err) {
-      app.innerHTML = '<div class="error-msg">Erreur: ' + err.message + '</div>';
+      app.innerHTML = '<div class="error-msg">Erreur: ' + escapeHtml(err.message) + '</div>';
     }
   }
 
@@ -367,11 +381,11 @@
     const questions = [
       { q: 'Est-ce legal ?', a: 'Oui, notre plateforme respecte la legislation francaise sur les jeux concours. Chaque tirage est aleatoire et transparent.' },
       { q: 'Comment sont choisis les gagnants ?', a: 'Les gagnants sont selectionnes par un algorithme de tirage au sort cryptographiquement securise. Chaque participant a exactement la meme chance de gagner.' },
-      { q: 'C'est securise ?', a: 'Nous utilisons des protocoles de securite standards pour proteger vos donnees. Aucune information bancaire n'est stockee sur nos serveurs.' },
+      { q: 'C\'est securise ?', a: 'Nous utilisons des protocoles de securite standards pour proteger vos donnees. Aucune information bancaire n\'est stockee sur nos serveurs.' },
       { q: 'Combien de chances ai-je de gagner ?', a: 'Chaque participation donne une chance egale. Plus le nombre de participants est faible, plus vos chances sont elevees.' },
       { q: 'Quand a lieu le tirage ?', a: 'Chaque giveaway a une date de fin affichee. Le tirage a lieu automatiquement a cette date. Un compteur est visible sur chaque giveaway.' },
       { q: 'Comment recevoir mon lot ?', a: 'Si vous gagnez, vous recevrez un email avec les instructions. La livraison est gratuite en France metropolitaine et le suivi est disponible dans votre espace.' },
-      { q: 'Puis-je participer plusieurs fois ?', a: 'Oui, vous pouvez participer plusieurs fois au meme giveaway pour augmenter vos chances.' }
+      { q: 'Puis-je participer plusieurs fois ?', a: 'Non, chaque utilisateur ne peut participer qu\'une seule fois par giveaway.' }
     ];
 
     app.innerHTML =
@@ -413,7 +427,7 @@
         '</form>' +
       '</div>';
 
-    document.getElementById('contact-form').addEventListener('submit', function(e) {
+    document.getElementById('contact-form').addEventListener('submit', async function(e) {
       e.preventDefault();
       const name = document.getElementById('contact-name').value.trim();
       const email = document.getElementById('contact-email').value.trim();
@@ -428,8 +442,17 @@
         feedback.innerHTML = '<div class="form-error">Email invalide</div>';
         return;
       }
-      feedback.innerHTML = '<div class="success-msg">Message envoye avec succes ! Nous vous repondrons rapidement.</div>';
-      this.reset();
+
+      try {
+        await api('/api/contact', {
+          method: 'POST',
+          body: JSON.stringify({ name: name, email: email, message: message })
+        });
+        feedback.innerHTML = '<div class="success-msg">Message envoye avec succes ! Nous vous repondrons rapidement.</div>';
+        this.reset();
+      } catch (err) {
+        feedback.innerHTML = '<div class="form-error">' + escapeHtml(err.message) + '</div>';
+      }
     });
   }
 
@@ -439,15 +462,15 @@
     app.innerHTML =
       '<div class="page container terms-page">' +
         '<h1 class="section-title">Mentions legales</h1>' +
-        '<h2>Conditions generales d'utilisation</h2>' +
-        '<p>En utilisant la plateforme Windrop, vous acceptez les presentes conditions generales d'utilisation. La participation aux giveaways est ouverte a toute personne majeure residant en France metropolitaine.</p>' +
+        '<h2>Conditions generales d\'utilisation</h2>' +
+        '<p>En utilisant la plateforme Windrop, vous acceptez les presentes conditions generales d\'utilisation. La participation aux giveaways est ouverte a toute personne majeure residant en France metropolitaine.</p>' +
         '<p>Chaque participation est facturee 1 euro. Ce montant est non remboursable. Le tirage au sort est effectue de maniere aleatoire a la date de fin indiquee sur chaque giveaway.</p>' +
-        '<p>Le gagnant est notifie par email a l'adresse fournie lors de l'inscription. Il dispose de 7 jours pour confirmer ses coordonnees de livraison.</p>' +
+        '<p>Le gagnant est notifie par email a l\'adresse fournie lors de l\'inscription. Il dispose de 7 jours pour confirmer ses coordonnees de livraison.</p>' +
         '<h2>Politique de confidentialite</h2>' +
-        '<p>Nous collectons uniquement les informations necessaires au fonctionnement du service : nom d'utilisateur et adresse email. Ces donnees ne sont jamais partagees avec des tiers.</p>' +
-        '<p>Conformement au RGPD, vous disposez d'un droit d'acces, de modification et de suppression de vos donnees personnelles. Pour exercer ce droit, contactez-nous via le formulaire de contact.</p>' +
+        '<p>Nous collectons uniquement les informations necessaires au fonctionnement du service : nom d\'utilisateur et adresse email. Ces donnees ne sont jamais partagees avec des tiers.</p>' +
+        '<p>Conformement au RGPD, vous disposez d\'un droit d\'acces, de modification et de suppression de vos donnees personnelles. Pour exercer ce droit, contactez-nous via le formulaire de contact.</p>' +
         '<h2>Responsabilite</h2>' +
-        '<p>Windrop ne peut etre tenu responsable en cas de force majeure empechant la livraison des lots. Les produits sont livres dans l'etat decrit sur la page du giveaway.</p>' +
+        '<p>Windrop ne peut etre tenu responsable en cas de force majeure empechant la livraison des lots. Les produits sont livres dans l\'etat decrit sur la page du giveaway.</p>' +
       '</div>';
   }
 

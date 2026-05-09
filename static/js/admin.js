@@ -4,7 +4,35 @@
 
   let currentAdminTab = 'list';
 
+  function getAdminToken() {
+    var token = sessionStorage.getItem('windrop_admin_token');
+    if (!token) {
+      token = prompt('Entrez le token administrateur:');
+      if (token) {
+        sessionStorage.setItem('windrop_admin_token', token);
+      }
+    }
+    return token || '';
+  }
+
+  // Use the global escapeHtml from app.js, with fallback
+  function esc(str) {
+    if (typeof window.escapeHtml === 'function') {
+      return window.escapeHtml(str);
+    }
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   window.renderAdminPage = function() {
+    // Ensure we have a token before proceeding
+    getAdminToken();
+
     const app = document.getElementById('app');
     app.innerHTML =
       '<div class="page container admin-page">' +
@@ -51,11 +79,11 @@
           '<tbody>' +
             list.map(g =>
               '<tr>' +
-                '<td data-label="ID">' + g.id + '</td>' +
-                '<td data-label="Titre">' + g.title + '</td>' +
-                '<td data-label="Prix">' + (g.price || 0) + ' EUR</td>' +
-                '<td data-label="Participants">' + (g.current_participants || 0) + '</td>' +
-                '<td data-label="Statut"><span class="status-badge status-' + g.status + '">' + g.status + '</span></td>' +
+                '<td data-label="ID">' + esc(g.id) + '</td>' +
+                '<td data-label="Titre">' + esc(g.title) + '</td>' +
+                '<td data-label="Prix">' + esc(g.price || 0) + ' EUR</td>' +
+                '<td data-label="Participants">' + esc(g.current_participants || 0) + '</td>' +
+                '<td data-label="Statut"><span class="status-badge status-' + esc(g.status) + '">' + esc(g.status) + '</span></td>' +
                 '<td data-label="Actions">' +
                   (g.status === 'active' ? '<button class="btn btn-sm btn-primary" onclick="window.adminDraw(' + g.id + ')">Tirage</button> ' : '') +
                   '<button class="btn btn-sm btn-secondary" onclick="window.adminViewParticipants(' + g.id + ')">Voir</button>' +
@@ -66,7 +94,7 @@
         '</table>' +
         (list.length === 0 ? '<p class="text-center" style="color:var(--text-secondary)">Aucun giveaway</p>' : '');
     } catch (err) {
-      container.innerHTML = '<div class="error-msg">Erreur: ' + err.message + '</div>';
+      container.innerHTML = '<div class="error-msg">Erreur: ' + esc(err.message) + '</div>';
     }
   }
 
@@ -110,7 +138,7 @@
         feedback.innerHTML = '<div class="success-msg">Giveaway cree avec succes !</div>';
         this.reset();
       } catch (err) {
-        feedback.innerHTML = '<div class="form-error">' + err.message + '</div>';
+        feedback.innerHTML = '<div class="form-error">' + esc(err.message) + '</div>';
       }
     });
   }
@@ -129,10 +157,10 @@
           '<tbody>' +
             list.map(w =>
               '<tr>' +
-                '<td data-label="ID">' + w.id + '</td>' +
-                '<td data-label="Gagnant">' + (w.username || 'N/A') + '</td>' +
-                '<td data-label="Produit">' + (w.giveaway_title || 'N/A') + '</td>' +
-                '<td data-label="Statut"><span class="shipping-badge shipping-' + (w.shipping_status || 'pending') + '">' + (w.shipping_status || 'pending') + '</span></td>' +
+                '<td data-label="ID">' + esc(w.id) + '</td>' +
+                '<td data-label="Gagnant">' + esc(w.username || 'N/A') + '</td>' +
+                '<td data-label="Produit">' + esc(w.giveaway_title || 'N/A') + '</td>' +
+                '<td data-label="Statut"><span class="shipping-badge shipping-' + esc(w.shipping_status || 'pending') + '">' + esc(w.shipping_status || 'pending') + '</span></td>' +
                 '<td data-label="Actions">' +
                   '<select onchange="window.adminUpdateShipping(' + w.id + ', this.value)" style="padding:0.3rem;background:var(--bg-card);color:var(--text-white);border:1px solid var(--border-card);border-radius:4px">' +
                     '<option value="pending"' + (w.shipping_status === 'pending' ? ' selected' : '') + '>En attente</option>' +
@@ -146,7 +174,7 @@
         '</table>' +
         (list.length === 0 ? '<p class="text-center" style="color:var(--text-secondary)">Aucun gagnant</p>' : '');
     } catch (err) {
-      container.innerHTML = '<div class="error-msg">Erreur: ' + err.message + '</div>';
+      container.innerHTML = '<div class="error-msg">Erreur: ' + esc(err.message) + '</div>';
     }
   }
 
@@ -155,7 +183,7 @@
     if (!confirm('Effectuer le tirage au sort pour ce giveaway ?')) return;
     try {
       const result = await adminApi('/api/admin/giveaways/' + giveawayId + '/draw', { method: 'POST', body: '{}' });
-      alert('Gagnant tire : ' + (result.winner ? result.winner.username || 'ID ' + result.winner.user_id : 'inconnu'));
+      alert('Gagnant tire : ' + esc(result.winner ? result.winner.username || 'ID ' + result.winner.user_id : 'inconnu'));
       renderAdminList();
     } catch (err) {
       alert('Erreur: ' + err.message);
@@ -169,23 +197,23 @@
       const participants = await adminApi('/api/admin/giveaways/' + giveawayId + '/participants');
       const list = Array.isArray(participants) ? participants : [];
       container.innerHTML =
-        '<button class="btn btn-secondary btn-sm mb-2" onclick="window.renderAdminPage(); document.querySelector('.admin-tab[data-tab=list]').click();">Retour</button>' +
-        '<h3 style="margin:1rem 0">Participants du giveaway #' + giveawayId + ' (' + list.length + ')</h3>' +
+        '<button class="btn btn-secondary btn-sm mb-2" onclick="window.renderAdminPage();">Retour</button>' +
+        '<h3 style="margin:1rem 0">Participants du giveaway #' + esc(giveawayId) + ' (' + esc(list.length) + ')</h3>' +
         '<table class="admin-table">' +
           '<thead><tr><th>Username</th><th>Email</th><th>Date</th></tr></thead>' +
           '<tbody>' +
             list.map(p =>
               '<tr>' +
-                '<td data-label="Username">' + (p.username || 'N/A') + '</td>' +
-                '<td data-label="Email">' + (p.email || 'N/A') + '</td>' +
-                '<td data-label="Date">' + (p.created_at || '') + '</td>' +
+                '<td data-label="Username">' + esc(p.username || 'N/A') + '</td>' +
+                '<td data-label="Email">' + esc(p.email || 'N/A') + '</td>' +
+                '<td data-label="Date">' + esc(p.created_at || '') + '</td>' +
               '</tr>'
             ).join('') +
           '</tbody>' +
         '</table>' +
         (list.length === 0 ? '<p style="color:var(--text-secondary);margin-top:1rem">Aucun participant</p>' : '');
     } catch (err) {
-      container.innerHTML = '<div class="error-msg">Erreur: ' + err.message + '</div>';
+      container.innerHTML = '<div class="error-msg">Erreur: ' + esc(err.message) + '</div>';
     }
   };
 
@@ -200,13 +228,23 @@
     }
   };
 
-  // Admin API helper
+  // Admin API helper with token
   async function adminApi(url, options = {}) {
+    var token = getAdminToken();
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = 'Bearer ' + token;
+    }
     try {
       const res = await fetch(url, {
-        headers: { 'Content-Type': 'application/json' },
+        headers: headers,
         ...options
       });
+      if (res.status === 401) {
+        // Token invalid, clear and prompt again
+        sessionStorage.removeItem('windrop_admin_token');
+        throw new Error('Token invalide. Rechargez la page pour reessayer.');
+      }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erreur serveur');
       return data;
