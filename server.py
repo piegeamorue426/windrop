@@ -9,7 +9,7 @@ from urllib.parse import urlparse, unquote
 import database
 import routes
 
-PORT = 8080
+PORT = int(os.environ.get("PORT", 3000))
 STATIC_DIR = Path(__file__).parent / "static"
 
 MIME_TYPES = {
