@@ -133,7 +133,9 @@
   // Card HTML Generator
   function giveawayCard(g) {
     var imgSrc = escapeHtml(g.image_url || '/static/images/placeholder.svg');
-    var ended = g.status === 'ended';
+    var ended = g.status === 'ended' || g.status === 'expired';
+    var countdownText = formatCountdown(g.end_time);
+    var timeExpired = countdownText === 'Termine';
     return '<div class="card" onclick="location.hash=\'#/giveaway/' + escapeHtml(g.id) + '\'" style="cursor:pointer">' +
       (ended ? '<span class="badge-ended">Termine</span>' : '') +
       '<img class="card-image" src="' + imgSrc + '" alt="' + escapeHtml(g.title) + '" onerror="this.src=\'/static/images/placeholder.svg\'">' +
@@ -142,8 +144,8 @@
         '<span class="card-price">' + escapeHtml(g.price || 0) + ' EUR</span>' +
         '<div class="card-meta">' +
           '<span class="card-participants">' + escapeHtml(g.current_participants || 0) + ' participants</span>' +
-          (ended ? '<span class="card-countdown">Termine</span>' :
-            '<span class="card-countdown" data-end-time="' + escapeHtml(g.end_time || '') + '">' + escapeHtml(formatCountdown(g.end_time)) + '</span>') +
+          ((ended || timeExpired) ? '<span class="card-countdown">Termine</span>' :
+            '<span class="card-countdown" data-end-time="' + escapeHtml(g.end_time || '') + '">' + escapeHtml(countdownText) + '</span>') +
         '</div>' +
       '</div>' +
     '</div>';
@@ -224,7 +226,10 @@
     try {
       const g = await api('/api/giveaways/' + id);
       var imgSrc = escapeHtml(g.image_url || '/static/images/placeholder.svg');
-      var ended = g.status === 'ended';
+      var ended = g.status === 'ended' || g.status === 'expired';
+      var countdownText = formatCountdown(g.end_time);
+      var timeExpired = countdownText === 'Termine';
+      var isFinished = ended || timeExpired;
 
       app.innerHTML =
         '<div class="page container detail-page">' +
@@ -238,9 +243,9 @@
               '<div class="detail-stats">' +
                 '<div class="detail-stat"><div class="detail-stat-value">' + escapeHtml(g.price || 0) + ' EUR</div><div class="detail-stat-label">Valeur</div></div>' +
                 '<div class="detail-stat"><div class="detail-stat-value">' + escapeHtml(g.current_participants || 0) + '</div><div class="detail-stat-label">Participants</div></div>' +
-                '<div class="detail-stat"><div class="detail-stat-value" ' + (!ended ? 'data-end-time="' + escapeHtml(g.end_time) + '"' : '') + '>' + (ended ? 'Termine' : escapeHtml(formatCountdown(g.end_time))) + '</div><div class="detail-stat-label">Temps restant</div></div>' +
+                '<div class="detail-stat"><div class="detail-stat-value" ' + (!isFinished ? 'data-end-time="' + escapeHtml(g.end_time) + '"' : '') + '>' + (isFinished ? 'Termine' : escapeHtml(countdownText)) + '</div><div class="detail-stat-label">Temps restant</div></div>' +
               '</div>' +
-              (!ended ? '<button class="btn btn-primary" onclick="window.showParticipateModal(' + g.id + ')">Participer - 1 euro</button>' :
+              (!isFinished ? '<button class="btn btn-primary" onclick="window.showParticipateModal(' + g.id + ')">Participer - 1 euro</button>' :
                 '<button class="btn btn-secondary" disabled>Giveaway termine</button>') +
             '</div>' +
           '</div>' +

@@ -38,16 +38,17 @@
       '<div class="page container admin-page">' +
         '<h1 class="section-title">Administration</h1>' +
         '<div class="admin-tabs">' +
-          '<button class="admin-tab active" data-tab="list">Giveaways</button>' +
-          '<button class="admin-tab" data-tab="create">Creer</button>' +
-          '<button class="admin-tab" data-tab="winners">Gagnants</button>' +
+          '<button class="admin-tab' + (currentAdminTab === 'list' ? ' active' : '') + '" data-tab="list">Giveaways</button>' +
+          '<button class="admin-tab' + (currentAdminTab === 'create' ? ' active' : '') + '" data-tab="create">Creer</button>' +
+          '<button class="admin-tab' + (currentAdminTab === 'winners' ? ' active' : '') + '" data-tab="winners">Gagnants</button>' +
+          '<button class="admin-tab' + (currentAdminTab === 'messages' ? ' active' : '') + '" data-tab="messages">Messages</button>' +
         '</div>' +
         '<div id="admin-content"></div>' +
       '</div>';
 
-    document.querySelectorAll('.admin-tab').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.admin-tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.admin-tab').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('.admin-tab').forEach(function(b) { b.classList.remove('active'); });
         btn.classList.add('active');
         currentAdminTab = btn.getAttribute('data-tab');
         renderAdminTab();
@@ -62,6 +63,7 @@
       case 'list': renderAdminList(); break;
       case 'create': renderAdminCreate(); break;
       case 'winners': renderAdminWinners(); break;
+      case 'messages': renderAdminMessages(); break;
     }
   }
 
@@ -77,8 +79,8 @@
         '<table class="admin-table">' +
           '<thead><tr><th>ID</th><th>Titre</th><th>Prix</th><th>Participants</th><th>Statut</th><th>Actions</th></tr></thead>' +
           '<tbody>' +
-            list.map(g =>
-              '<tr>' +
+            list.map(function(g) {
+              return '<tr>' +
                 '<td data-label="ID">' + esc(g.id) + '</td>' +
                 '<td data-label="Titre">' + esc(g.title) + '</td>' +
                 '<td data-label="Prix">' + esc(g.price || 0) + ' EUR</td>' +
@@ -86,11 +88,13 @@
                 '<td data-label="Statut"><span class="status-badge status-' + esc(g.status) + '">' + esc(g.status) + '</span></td>' +
                 '<td data-label="Actions">' +
                   (g.status === 'active' ? '<button class="btn btn-sm btn-primary" onclick="window.adminDraw(' + g.id + ')">Tirage</button> ' : '') +
+                  (g.status === 'active' ? '<button class="btn btn-sm btn-warning" onclick="window.adminCloseGiveaway(' + g.id + ')">Fermer</button> ' : '') +
+                  '<button class="btn btn-sm btn-secondary" onclick="window.adminEditGiveaway(' + g.id + ')">Editer</button> ' +
                   '<button class="btn btn-sm btn-secondary" onclick="window.adminViewParticipants(' + g.id + ')">Voir</button> ' +
-                  '<button class="btn btn-sm" style="background:var(--accent-red);color:#fff" onclick="window.adminDeleteGiveaway(' + g.id + ')">Supprimer</button>' +
+                  '<button class="btn btn-sm btn-danger" onclick="window.adminDeleteGiveaway(' + g.id + ')">Supprimer</button>' +
                 '</td>' +
-              '</tr>'
-            ).join('') +
+              '</tr>';
+            }).join('') +
           '</tbody>' +
         '</table>' +
         (list.length === 0 ? '<p class="text-center" style="color:var(--text-secondary)">Aucun giveaway</p>' : '');
@@ -118,8 +122,8 @@
 
     document.getElementById('admin-create-form').addEventListener('submit', async function(e) {
       e.preventDefault();
-      const feedback = document.getElementById('admin-create-feedback');
-      const data = {
+      var feedback = document.getElementById('admin-create-feedback');
+      var data = {
         title: document.getElementById('adm-title').value.trim(),
         description: document.getElementById('adm-desc').value.trim(),
         price: parseFloat(document.getElementById('adm-price').value) || 0,
@@ -156,8 +160,8 @@
         '<table class="admin-table">' +
           '<thead><tr><th>ID</th><th>Gagnant</th><th>Produit</th><th>Statut</th><th>Actions</th></tr></thead>' +
           '<tbody>' +
-            list.map(w =>
-              '<tr>' +
+            list.map(function(w) {
+              return '<tr>' +
                 '<td data-label="ID">' + esc(w.id) + '</td>' +
                 '<td data-label="Gagnant">' + esc(w.username || 'N/A') + '</td>' +
                 '<td data-label="Produit">' + esc(w.giveaway_title || 'N/A') + '</td>' +
@@ -169,11 +173,40 @@
                     '<option value="delivered"' + (w.shipping_status === 'delivered' ? ' selected' : '') + '>Livre</option>' +
                   '</select>' +
                 '</td>' +
-              '</tr>'
-            ).join('') +
+              '</tr>';
+            }).join('') +
           '</tbody>' +
         '</table>' +
         (list.length === 0 ? '<p class="text-center" style="color:var(--text-secondary)">Aucun gagnant</p>' : '');
+    } catch (err) {
+      container.innerHTML = '<div class="error-msg">Erreur: ' + esc(err.message) + '</div>';
+    }
+  }
+
+  async function renderAdminMessages() {
+    const container = document.getElementById('admin-content');
+    container.innerHTML = '<div class="loading">Chargement...</div>';
+
+    try {
+      const messages = await adminApi('/api/admin/messages');
+      const list = Array.isArray(messages) ? messages : [];
+
+      container.innerHTML =
+        '<table class="admin-table">' +
+          '<thead><tr><th>Date</th><th>Nom</th><th>Email</th><th>Message</th></tr></thead>' +
+          '<tbody>' +
+            list.map(function(m) {
+              var dateStr = m.created_at ? new Date(m.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+              return '<tr>' +
+                '<td data-label="Date">' + esc(dateStr) + '</td>' +
+                '<td data-label="Nom">' + esc(m.name) + '</td>' +
+                '<td data-label="Email">' + esc(m.email) + '</td>' +
+                '<td data-label="Message">' + esc(m.message) + '</td>' +
+              '</tr>';
+            }).join('') +
+          '</tbody>' +
+        '</table>' +
+        (list.length === 0 ? '<p class="text-center" style="color:var(--text-secondary)">Aucun message</p>' : '');
     } catch (err) {
       container.innerHTML = '<div class="error-msg">Erreur: ' + esc(err.message) + '</div>';
     }
@@ -183,8 +216,21 @@
   window.adminDraw = async function(giveawayId) {
     if (!confirm('Effectuer le tirage au sort pour ce giveaway ?')) return;
     try {
-      const result = await adminApi('/api/admin/giveaways/' + giveawayId + '/draw', { method: 'POST', body: '{}' });
-      alert('Gagnant tire : ' + esc(result.winner ? result.winner.username || 'ID ' + result.winner.user_id : 'inconnu'));
+      var result = await adminApi('/api/admin/giveaways/' + giveawayId + '/draw', { method: 'POST', body: '{}' });
+      alert('Gagnant tire : ' + (result.winner ? result.winner.username || 'ID ' + result.winner.user_id : 'inconnu'));
+      renderAdminList();
+    } catch (err) {
+      alert('Erreur: ' + err.message);
+    }
+  };
+
+  window.adminCloseGiveaway = async function(giveawayId) {
+    if (!confirm('Fermer ce giveaway ? Il sera marque comme expire.')) return;
+    try {
+      await adminApi('/api/admin/giveaways/' + giveawayId, {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'expired' })
+      });
       renderAdminList();
     } catch (err) {
       alert('Erreur: ' + err.message);
@@ -201,25 +247,110 @@
     }
   };
 
+  window.adminEditGiveaway = async function(giveawayId) {
+    var container = document.getElementById('admin-content');
+    container.innerHTML = '<div class="loading">Chargement...</div>';
+
+    try {
+      var giveaways = await adminApi('/api/admin/giveaways');
+      var g = null;
+      for (var i = 0; i < giveaways.length; i++) {
+        if (giveaways[i].id === giveawayId) { g = giveaways[i]; break; }
+      }
+      if (!g) {
+        container.innerHTML = '<div class="error-msg">Giveaway introuvable</div>';
+        return;
+      }
+
+      var endTimeVal = '';
+      if (g.end_time) {
+        // Convert ISO to datetime-local format
+        var dt = g.end_time.replace('T', 'T').slice(0, 16);
+        endTimeVal = dt;
+      }
+
+      container.innerHTML =
+        '<button class="btn btn-secondary btn-sm mb-2" onclick="window.renderAdminPage();">Retour</button>' +
+        '<h3 style="margin:1rem 0">Editer le giveaway #' + esc(giveawayId) + '</h3>' +
+        '<form id="admin-edit-form" style="max-width:500px">' +
+          '<div class="form-group"><label>Titre</label><input type="text" id="edit-title" value="' + esc(g.title || '') + '" required></div>' +
+          '<div class="form-group"><label>Description</label><textarea id="edit-desc">' + esc(g.description || '') + '</textarea></div>' +
+          '<div class="form-group"><label>Prix (valeur du produit)</label><input type="number" id="edit-price" step="0.01" value="' + esc(g.price || 0) + '" required></div>' +
+          '<div class="form-group"><label>URL Image</label><input type="text" id="edit-image" value="' + esc(g.image_url || '') + '" placeholder="https://..."></div>' +
+          '<div class="form-group"><label>URL Source (produit original)</label><input type="text" id="edit-source" value="' + esc(g.source_url || '') + '" placeholder="https://..."></div>' +
+          '<div class="form-group"><label>Etat du produit</label>' +
+            '<select id="edit-condition">' +
+              '<option value="neuf"' + (g.condition === 'neuf' ? ' selected' : '') + '>Neuf</option>' +
+              '<option value="comme neuf"' + (g.condition === 'comme neuf' ? ' selected' : '') + '>Comme neuf</option>' +
+              '<option value="bon etat"' + (g.condition === 'bon etat' ? ' selected' : '') + '>Bon etat</option>' +
+              '<option value="correct"' + (g.condition === 'correct' ? ' selected' : '') + '>Correct</option>' +
+            '</select>' +
+          '</div>' +
+          '<div class="form-group"><label>Max participants</label><input type="number" id="edit-max-participants" value="' + esc(g.max_participants || '') + '" placeholder="Illimite si vide"></div>' +
+          '<div class="form-group"><label>Date de fin</label><input type="datetime-local" id="edit-end" value="' + esc(endTimeVal) + '"></div>' +
+          '<div class="form-group"><label>Statut</label>' +
+            '<select id="edit-status">' +
+              '<option value="active"' + (g.status === 'active' ? ' selected' : '') + '>Active</option>' +
+              '<option value="expired"' + (g.status === 'expired' ? ' selected' : '') + '>Expire</option>' +
+              '<option value="ended"' + (g.status === 'ended' ? ' selected' : '') + '>Termine</option>' +
+            '</select>' +
+          '</div>' +
+          '<div id="admin-edit-feedback"></div>' +
+          '<button type="submit" class="btn btn-primary">Sauvegarder</button>' +
+        '</form>';
+
+      document.getElementById('admin-edit-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        var feedback = document.getElementById('admin-edit-feedback');
+        var data = {
+          title: document.getElementById('edit-title').value.trim(),
+          description: document.getElementById('edit-desc').value.trim(),
+          price: parseFloat(document.getElementById('edit-price').value) || 0,
+          image_url: document.getElementById('edit-image').value.trim(),
+          source_url: document.getElementById('edit-source').value.trim(),
+          condition: document.getElementById('edit-condition').value,
+          max_participants: parseInt(document.getElementById('edit-max-participants').value) || null,
+          end_time: document.getElementById('edit-end').value || null,
+          status: document.getElementById('edit-status').value
+        };
+
+        if (!data.title) {
+          feedback.innerHTML = '<div class="form-error">Le titre est requis</div>';
+          return;
+        }
+
+        try {
+          await adminApi('/api/admin/giveaways/' + giveawayId, { method: 'PUT', body: JSON.stringify(data) });
+          feedback.innerHTML = '<div class="success-msg">Giveaway mis a jour !</div>';
+          setTimeout(function() { currentAdminTab = 'list'; window.renderAdminPage(); }, 1000);
+        } catch (err) {
+          feedback.innerHTML = '<div class="form-error">' + esc(err.message) + '</div>';
+        }
+      });
+    } catch (err) {
+      container.innerHTML = '<div class="error-msg">Erreur: ' + esc(err.message) + '</div>';
+    }
+  };
+
   window.adminViewParticipants = async function(giveawayId) {
-    const container = document.getElementById('admin-content');
+    var container = document.getElementById('admin-content');
     container.innerHTML = '<div class="loading">Chargement...</div>';
     try {
-      const participants = await adminApi('/api/admin/giveaways/' + giveawayId + '/participants');
-      const list = Array.isArray(participants) ? participants : [];
+      var participants = await adminApi('/api/admin/giveaways/' + giveawayId + '/participants');
+      var list = Array.isArray(participants) ? participants : [];
       container.innerHTML =
         '<button class="btn btn-secondary btn-sm mb-2" onclick="window.renderAdminPage();">Retour</button>' +
         '<h3 style="margin:1rem 0">Participants du giveaway #' + esc(giveawayId) + ' (' + esc(list.length) + ')</h3>' +
         '<table class="admin-table">' +
           '<thead><tr><th>Username</th><th>Email</th><th>Date</th></tr></thead>' +
           '<tbody>' +
-            list.map(p =>
-              '<tr>' +
+            list.map(function(p) {
+              return '<tr>' +
                 '<td data-label="Username">' + esc(p.username || 'N/A') + '</td>' +
                 '<td data-label="Email">' + esc(p.email || 'N/A') + '</td>' +
                 '<td data-label="Date">' + esc(p.created_at || '') + '</td>' +
-              '</tr>'
-            ).join('') +
+              '</tr>';
+            }).join('') +
           '</tbody>' +
         '</table>' +
         (list.length === 0 ? '<p style="color:var(--text-secondary);margin-top:1rem">Aucun participant</p>' : '');
@@ -240,23 +371,25 @@
   };
 
   // Admin API helper with token
-  async function adminApi(url, options = {}) {
+  async function adminApi(url, options) {
+    options = options || {};
     var token = getAdminToken();
     var headers = { 'Content-Type': 'application/json' };
     if (token) {
       headers['Authorization'] = 'Bearer ' + token;
     }
     try {
-      const res = await fetch(url, {
+      var res = await fetch(url, {
         headers: headers,
-        ...options
+        method: options.method || 'GET',
+        body: options.body || undefined
       });
       if (res.status === 401) {
         // Token invalid, clear and prompt again
         sessionStorage.removeItem('windrop_admin_token');
         throw new Error('Token invalide. Rechargez la page pour reessayer.');
       }
-      const data = await res.json();
+      var data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erreur serveur');
       return data;
     } catch (err) {

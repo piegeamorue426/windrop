@@ -2,7 +2,7 @@
 
 import sqlite3
 import secrets
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 DB_PATH = Path(__file__).parent / "windrop.db"
@@ -118,7 +118,7 @@ def get_giveaway(giveaway_id):
 def create_giveaway(data):
     """Create a new giveaway."""
     conn = get_connection()
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     cursor = conn.execute(
         """INSERT INTO giveaways (title, description, image_url, price, source_url,
            condition, max_participants, end_time, status, created_at)
@@ -185,7 +185,7 @@ def get_or_create_user(username, email):
         conn.close()
         return dict(row)
 
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     cursor = conn.execute(
         "INSERT INTO users (username, email, created_at) VALUES (?, ?, ?)",
         (username, email, now)
@@ -217,7 +217,7 @@ def create_ticket(user_id, giveaway_id):
         conn.close()
         raise ValueError("Duplicate participation")
 
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     cursor = conn.execute(
         "INSERT INTO tickets (user_id, giveaway_id, payment_status, created_at) VALUES (?, ?, 'completed', ?)",
         (user_id, giveaway_id, now)
@@ -252,7 +252,7 @@ def draw_winner(giveaway_id):
     winner_index = secrets.randbelow(len(tickets))
     winning_ticket = dict(tickets[winner_index])
 
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     conn = get_connection()
     cursor = conn.execute(
         """INSERT INTO winners (giveaway_id, user_id, ticket_id, drawn_at, shipping_status)
@@ -369,7 +369,7 @@ def delete_giveaway(giveaway_id):
 def create_contact_message(name, email, message):
     """Store a contact form message in the database."""
     conn = get_connection()
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     cursor = conn.execute(
         "INSERT INTO contact_messages (name, email, message, created_at) VALUES (?, ?, ?, ?)",
         (name, email, message, now)
@@ -378,3 +378,14 @@ def create_contact_message(name, email, message):
     conn.commit()
     conn.close()
     return {"id": msg_id, "name": name, "email": email, "message": message, "created_at": now}
+
+
+def get_all_contact_messages():
+    """Get all contact messages ordered by date descending."""
+    conn = get_connection()
+    cursor = conn.execute(
+        "SELECT * FROM contact_messages ORDER BY created_at DESC"
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
