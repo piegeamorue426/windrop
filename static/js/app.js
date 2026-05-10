@@ -324,6 +324,41 @@
       var timeExpired = countdownText === 'Termine';
       var isFinished = ended || timeExpired;
 
+      // Check if giveaway has a winner - show wheel animation
+      if (g.status === 'ended' && g.winner_id) {
+        try {
+          var participants = await api('/api/giveaways/' + id + '/participants');
+          var winners = await api('/api/winners');
+          var winnerEntry = null;
+          for (var i = 0; i < winners.length; i++) {
+            if (winners[i].giveaway_id == id) {
+              winnerEntry = winners[i];
+              break;
+            }
+          }
+          if (winnerEntry && participants.length > 0) {
+            app.innerHTML =
+              '<div class="page container detail-page">' +
+                '<h1 class="section-title" style="margin-bottom:0.5rem">' + escapeHtml(g.title) + '</h1>' +
+                '<p class="section-subtitle">Tirage au sort</p>' +
+                '<div id="wheel-container" class="wheel-container"></div>' +
+                '<div id="wheel-congrats" class="wheel-congrats" style="display:none">' +
+                  '<div class="wheel-congrats-inner">' +
+                    '<div class="wheel-congrats-icon">&#127942;</div>' +
+                    '<div class="wheel-congrats-title">GAGNANT</div>' +
+                    '<div class="wheel-congrats-name">' + escapeHtml(winnerEntry.username) + '</div>' +
+                    '<div class="wheel-congrats-sub">Felicitations !</div>' +
+                  '</div>' +
+                '</div>' +
+              '</div>';
+            renderWinnerWheel(id, winnerEntry.username, participants);
+            return;
+          }
+        } catch(e) {
+          // Fall through to normal detail view if wheel data fails
+        }
+      }
+
       app.innerHTML =
         '<div class="page container detail-page">' +
           '<div class="detail-header">' +
@@ -358,6 +393,165 @@
     } catch (err) {
       app.innerHTML = '<div class="error-msg">Giveaway introuvable</div>';
     }
+  }
+
+  // Winner Wheel Animation
+  function renderWinnerWheel(giveawayId, winnerName, participants) {
+    var container = document.getElementById('wheel-container');
+    if (!container) return;
+
+    var names = participants.map(function(p) { return p.username; });
+    if (names.length === 0) return;
+
+    // Ensure winner is in the list
+    var winnerIndex = -1;
+    for (var i = 0; i < names.length; i++) {
+      if (names[i] === winnerName) { winnerIndex = i; break; }
+    }
+    if (winnerIndex === -1) {
+      names.push(winnerName);
+      winnerIndex = names.length - 1;
+    }
+
+    var numSegments = names.length;
+    var segmentAngle = (2 * Math.PI) / numSegments;
+
+    // Colors for segments
+    var segmentColors = ['#1a0505', '#1f1f1f', '#0d0d0d', '#2a0a0a', '#151515', '#110303'];
+
+    // Canvas setup
+    var size = Math.min(container.clientWidth || 400, 500);
+    var canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    canvas.className = 'wheel-canvas';
+    container.innerHTML = '';
+
+    // Add pointer
+    var pointer = document.createElement('div');
+    pointer.className = 'wheel-pointer';
+    pointer.innerHTML = '&#9660;';
+    container.appendChild(pointer);
+    container.appendChild(canvas);
+
+    var ctx = canvas.getContext('2d');
+    var centerX = size / 2;
+    var centerY = size / 2;
+    var radius = (size / 2) - 10;
+
+    // Calculate final angle: pointer is at top (3*PI/2 from positive x-axis)
+    // We want the winner segment center to be at the top when rotation stops
+    var winnerSegmentCenter = winnerIndex * segmentAngle + segmentAngle / 2;
+    // The pointer is at top = -PI/2 (or 3PI/2)
+    // Final rotation should place winner under the pointer
+    var pointerAngle = -Math.PI / 2;
+    var targetAngle = pointerAngle - winnerSegmentCenter;
+    // Add multiple full rotations for visual effect
+    var totalRotations = 8;
+    var finalAngle = targetAngle + (totalRotations * 2 * Math.PI);
+
+    // Animation parameters
+    var startTime = null;
+    var spinDuration = 7000; // 7 seconds total
+    var currentAngle = 0;
+
+    function easeOutQuart(t) {
+      return 1 - Math.pow(1 - t, 4);
+    }
+
+    function drawWheel(angle) {
+      ctx.clearRect(0, 0, size, size);
+
+      // Draw outer ring glow
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius + 4, 0, 2 * Math.PI);
+      ctx.strokeStyle = 'rgba(255, 30, 30, 0.4)';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      for (var i = 0; i < numSegments; i++) {
+        var startAngle = angle + i * segmentAngle;
+        var endAngle = startAngle + segmentAngle;
+
+        // Draw segment
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+        ctx.closePath();
+        ctx.fillStyle = segmentColors[i % segmentColors.length];
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255, 30, 30, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Draw text
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.rotate(startAngle + segmentAngle / 2);
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        var fontSize = Math.max(10, Math.min(14, 200 / numSegments));
+        ctx.font = 'bold ' + fontSize + 'px system-ui, sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = 'rgba(255, 30, 30, 0.5)';
+        ctx.shadowBlur = 4;
+        var displayName = names[i];
+        if (displayName.length > 12) displayName = displayName.substring(0, 11) + '..';
+        ctx.fillText(displayName, radius - 15, 0);
+        ctx.restore();
+      }
+
+      // Draw center circle
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, 25, 0, 2 * Math.PI);
+      ctx.fillStyle = '#0b0b0b';
+      ctx.fill();
+      ctx.strokeStyle = '#ff1e1e';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      // Draw center dot
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, 8, 0, 2 * Math.PI);
+      ctx.fillStyle = '#ff1e1e';
+      ctx.shadowColor = 'rgba(255, 30, 30, 0.8)';
+      ctx.shadowBlur = 10;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    function animate(timestamp) {
+      if (!startTime) startTime = timestamp;
+      var elapsed = timestamp - startTime;
+      var progress = Math.min(elapsed / spinDuration, 1);
+
+      // Use easing for smooth slowdown
+      var easedProgress = easeOutQuart(progress);
+      currentAngle = easedProgress * finalAngle;
+
+      drawWheel(currentAngle);
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        // Animation complete - show winner
+        setTimeout(showWinnerCongrats, 500);
+      }
+    }
+
+    function showWinnerCongrats() {
+      var congratsEl = document.getElementById('wheel-congrats');
+      if (congratsEl) {
+        congratsEl.style.display = 'flex';
+      }
+      // Add glow to canvas
+      canvas.classList.add('wheel-canvas-glow');
+    }
+
+    // Start animation after a short delay
+    setTimeout(function() {
+      requestAnimationFrame(animate);
+    }, 500);
   }
 
   // Generate persistent browser fingerprint for anti-fraud

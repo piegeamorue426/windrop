@@ -215,6 +215,16 @@ def handle_get_giveaways(path_parts, body, headers=None):
     return (200, giveaways)
 
 
+def handle_get_public_participants(path_parts, body, headers=None):
+    """GET /api/giveaways/{id}/participants - public endpoint returning usernames only."""
+    giveaway_id = int(path_parts[2])
+    giveaway = database.get_giveaway(giveaway_id)
+    if not giveaway:
+        return (404, {"error": "Giveaway not found"})
+    participants = database.get_giveaway_participants(giveaway_id)
+    return (200, [{"username": p["username"]} for p in participants])
+
+
 def handle_get_giveaway(path_parts, body, headers=None):
     """GET /api/giveaways/{id} - single giveaway detail."""
     auto_expire_giveaways()
@@ -491,6 +501,10 @@ def route_request(method, path_parts, body, headers=None, raw_body=None):
             return handle_get_giveaway(path_parts, body, headers)
         except (ValueError, IndexError):
             pass
+
+    # GET /api/giveaways/{id}/participants (public - usernames only)
+    if method == "GET" and len(path_parts) == 4 and path_parts[0] == "api" and path_parts[1] == "giveaways" and path_parts[3] == "participants":
+        return handle_get_public_participants(path_parts, body, headers)
 
     # POST /api/giveaways/{id}/participate
     if method == "POST" and len(path_parts) == 4 and path_parts[0] == "api" and path_parts[1] == "giveaways" and path_parts[3] == "participate":
