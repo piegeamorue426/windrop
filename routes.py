@@ -198,6 +198,12 @@ def handle_admin_upload(path_parts, body, headers=None, raw_body=None):
     return (200, {"url": "/static/uploads/" + unique_name})
 
 
+def handle_get_recent_activity(path_parts, body, headers=None):
+    """GET /api/recent-activity - return last 5 real participations."""
+    activity = database.get_recent_activity(5)
+    return (200, activity)
+
+
 def handle_get_giveaways(path_parts, body, headers=None):
     """GET /api/giveaways - list active giveaways."""
     auto_expire_giveaways()
@@ -456,6 +462,10 @@ def route_request(method, path_parts, body, headers=None, raw_body=None):
     path_str = "/".join(path_parts)
 
     # Public API routes
+    # GET /api/recent-activity
+    if method == "GET" and path_str == "api/recent-activity":
+        return handle_get_recent_activity(path_parts, body, headers)
+
     # GET /api/giveaways
     if method == "GET" and path_str == "api/giveaways":
         return handle_get_giveaways(path_parts, body, headers)

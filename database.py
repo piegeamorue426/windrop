@@ -464,6 +464,22 @@ def get_recent_participations_by_ip(ip_address, hours=1):
     return count
 
 
+def get_recent_activity(limit=5):
+    """Get the most recent participations with username and giveaway title."""
+    conn = get_connection()
+    cursor = conn.execute("""
+        SELECT t.created_at, u.username, g.title as giveaway_title
+        FROM tickets t
+        JOIN users u ON t.user_id = u.id
+        JOIN giveaways g ON t.giveaway_id = g.id
+        ORDER BY t.created_at DESC
+        LIMIT ?
+    """, (limit,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
 def check_fingerprint_multi_account(fingerprint, hours=24):
     """Count distinct user_ids associated with a fingerprint in the last N hours."""
     from datetime import timedelta
