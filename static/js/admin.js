@@ -398,6 +398,8 @@
       var result = await adminApi('/api/admin/giveaways/' + giveawayId + '/draw', { method: 'POST', body: '{}' });
       alert('Gagnant tire : ' + (result.winner ? result.winner.username || 'ID ' + result.winner.user_id : 'inconnu'));
       renderAdminList();
+      // Redirect to giveaway page to see the wheel
+      setTimeout(function() { location.hash = '#/giveaway/' + giveawayId; }, 1500);
     } catch (err) {
       alert('Erreur: ' + err.message);
     }

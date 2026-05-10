@@ -1150,17 +1150,13 @@ input, textarea, select { font-family: inherit; }
   background: rgba(255, 30, 30, 0.3);
 }
 
-/* Admin draw button prominent */
+/* Admin draw button */
 .btn-draw {
   background: var(--accent-red) !important;
   color: white !important;
-  font-weight: 700 !important;
-  font-size: 0.9rem !important;
-  padding: 0.6rem 1.2rem !important;
-  border-radius: 6px !important;
-  animation: pulse-draw 2s infinite;
-}
-@keyframes pulse-draw {
-  0%, 100% { box-shadow: 0 0 5px rgba(255,30,30,0.5); }
-  50% { box-shadow: 0 0 15px rgba(255,30,30,0.8); }
+  font-weight: 600 !important;
+  font-size: 0.8rem !important;
+  padding: 0.4rem 0.8rem !important;
+  border-radius: 4px !important;
+  animation: none;
 }

@@ -324,10 +324,9 @@
       var timeExpired = countdownText === 'Termine';
       var isFinished = ended || timeExpired;
 
-      // Check if giveaway has a winner - show wheel animation
-      if (g.status === 'ended' && g.winner_id) {
+      // Check if giveaway has ended - show wheel animation
+      if (g.status === 'ended') {
         try {
-          var participants = await api('/api/giveaways/' + id + '/participants');
           var winners = await api('/api/winners');
           var winnerEntry = null;
           for (var i = 0; i < winners.length; i++) {
@@ -336,23 +335,26 @@
               break;
             }
           }
-          if (winnerEntry && participants.length > 0) {
-            app.innerHTML =
-              '<div class="page container detail-page">' +
-                '<h1 class="section-title" style="margin-bottom:0.5rem">' + escapeHtml(g.title) + '</h1>' +
-                '<p class="section-subtitle">Tirage au sort</p>' +
-                '<div id="wheel-container" class="wheel-container"></div>' +
-                '<div id="wheel-congrats" class="wheel-congrats" style="display:none">' +
-                  '<div class="wheel-congrats-inner">' +
-                    '<div class="wheel-congrats-icon">&#127942;</div>' +
-                    '<div class="wheel-congrats-title">GAGNANT</div>' +
-                    '<div class="wheel-congrats-name">' + escapeHtml(winnerEntry.username) + '</div>' +
-                    '<div class="wheel-congrats-sub">Felicitations !</div>' +
+          if (winnerEntry) {
+            var participants = await api('/api/giveaways/' + id + '/participants');
+            if (participants.length > 0) {
+              app.innerHTML =
+                '<div class="page container detail-page">' +
+                  '<h1 class="section-title" style="margin-bottom:0.5rem">' + escapeHtml(g.title) + '</h1>' +
+                  '<p class="section-subtitle">Tirage au sort</p>' +
+                  '<div id="wheel-container" class="wheel-container"></div>' +
+                  '<div id="wheel-congrats" class="wheel-congrats" style="display:none">' +
+                    '<div class="wheel-congrats-inner">' +
+                      '<div class="wheel-congrats-icon">&#127942;</div>' +
+                      '<div class="wheel-congrats-title">GAGNANT</div>' +
+                      '<div class="wheel-congrats-name">' + escapeHtml(winnerEntry.username) + '</div>' +
+                      '<div class="wheel-congrats-sub">Felicitations !</div>' +
+                    '</div>' +
                   '</div>' +
-                '</div>' +
-              '</div>';
-            renderWinnerWheel(id, winnerEntry.username, participants);
-            return;
+                '</div>';
+              renderWinnerWheel(id, winnerEntry.username, participants);
+              return;
+            }
           }
         } catch(e) {
           // Fall through to normal detail view if wheel data fails
