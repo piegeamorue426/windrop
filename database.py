@@ -104,6 +104,16 @@ def init_db():
         )
     """)
 
+    # Performance indexes
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_giveaways_status ON giveaways(status)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_giveaways_created_at ON giveaways(created_at)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_tickets_user_giveaway ON tickets(user_id, giveaway_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_tickets_giveaway ON tickets(giveaway_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_winners_giveaway ON winners(giveaway_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_fingerprints_giveaway_ip ON participation_fingerprints(giveaway_id, ip_address)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_fingerprints_giveaway_fp ON participation_fingerprints(giveaway_id, fingerprint)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_fingerprints_ip_created ON participation_fingerprints(ip_address, created_at)")
+
     conn.commit()
     conn.close()
 
@@ -438,3 +448,29 @@ def record_participation_fingerprint(giveaway_id, user_id, ip_address, fingerpri
     )
     conn.commit()
     conn.close()
+
+
+def get_recent_participations_by_ip(ip_address, hours=1):
+    """Count participations from a given IP in the last N hours."""
+    from datetime import timedelta
+    conn = get_connection()
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+    cursor = conn.execute(
+        "SELECT COUNT(*) as count FROM participation_fingerprints WHERE ip_address = ? AND created_at > ?",
+        (ip_address, cutoff)
+    )
+    count = cursor.fetchone()["count"]
+    conn.close()
+    return count
+
+
+def check_fingerprint_multi_account(fingerprint):
+    """Return the count of distinct user_ids associated with a fingerprint."""
+    conn = get_connection()
+    cursor = conn.execute(
+        "SELECT COUNT(DISTINCT user_id) as count FROM participation_fingerprints WHERE fingerprint = ?",
+        (fingerprint,)
+    )
+    count = cursor.fetchone()["count"]
+    conn.close()
+    return count

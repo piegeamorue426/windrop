@@ -2,7 +2,9 @@
 
 import json
 import os
+import re
 import secrets
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 import database
@@ -12,6 +14,52 @@ ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "windrop-admin-2024")
 UPLOAD_DIR = Path(__file__).parent / "static" / "uploads"
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5MB
+
+# In-memory cache for API responses
+_cache = {}
+CACHE_TTL = 30  # seconds
+
+# Auto-expire throttle
+_last_expire_check = 0
+
+
+def _cache_get(key):
+    """Get cached data if not expired."""
+    if key in _cache:
+        timestamp, data = _cache[key]
+        if time.time() - timestamp < CACHE_TTL:
+            return data
+        del _cache[key]
+    return None
+
+
+def _cache_set(key, data):
+    """Set cache entry with current timestamp."""
+    _cache[key] = (time.time(), data)
+
+
+def _cache_invalidate():
+    """Clear all cached entries."""
+    _cache.clear()
+
+
+def _is_valid_email(email):
+    """Check that email is valid: no spaces, one @, non-empty local, domain has dot."""
+    if not email or " " in email:
+        return False
+    parts = email.split("@")
+    if len(parts) != 2:
+        return False
+    local, domain = parts
+    if not local:
+        return False
+    if "." not in domain:
+        return False
+    domain_parts = domain.split(".")
+    for part in domain_parts:
+        if not part:
+            return False
+    return True
 
 
 def check_admin_auth(headers):
@@ -28,6 +76,12 @@ def check_admin_auth(headers):
 
 def auto_expire_giveaways():
     """Check all active giveaways and expire any with past end_time."""
+    global _last_expire_check
+    now_ts = time.time()
+    if now_ts - _last_expire_check < 60:
+        return
+    _last_expire_check = now_ts
+
     giveaways = database.get_all_giveaways(status_filter="active")
     now = datetime.now(timezone.utc)
     for g in giveaways:
@@ -147,7 +201,11 @@ def handle_admin_upload(path_parts, body, headers=None, raw_body=None):
 def handle_get_giveaways(path_parts, body, headers=None):
     """GET /api/giveaways - list active giveaways."""
     auto_expire_giveaways()
+    cached = _cache_get("giveaways")
+    if cached is not None:
+        return (200, cached)
     giveaways = database.get_all_giveaways(status_filter="active")
+    _cache_set("giveaways", giveaways)
     return (200, giveaways)
 
 
@@ -194,6 +252,10 @@ def handle_participate(path_parts, body, headers=None):
     username = body["username"]
     email = body["email"]
 
+    # Email validation
+    if not _is_valid_email(email):
+        return (400, {"error": "Adresse email invalide"})
+
     # Anti-fraud: extract IP and fingerprint
     ip_address = ""
     if headers:
@@ -203,6 +265,18 @@ def handle_participate(path_parts, body, headers=None):
             ip_address = ip_address.split(",")[0].strip()
 
     fingerprint = body.get("fingerprint", "")
+
+    # Rate limiting: max 10 participations per IP per hour
+    if ip_address:
+        recent_count = database.get_recent_participations_by_ip(ip_address)
+        if recent_count >= 10:
+            return (429, {"error": "Trop de participations recentes. Veuillez reessayer plus tard."})
+
+    # Multi-account detection
+    if fingerprint:
+        multi_count = database.check_fingerprint_multi_account(fingerprint)
+        if multi_count >= 3:
+            return (400, {"error": "Activite suspecte detectee sur cet appareil."})
 
     # Check for duplicate participation by device/IP
     if ip_address or fingerprint:
@@ -220,18 +294,8 @@ def handle_participate(path_parts, body, headers=None):
     if ip_address or fingerprint:
         database.record_participation_fingerprint(giveaway_id, user["id"], ip_address, fingerprint)
 
-    # PAYMENT: For now, participation is free (simulation mode)
-    # When ready, uncomment and add Stripe:
-    # import stripe
-    # stripe.api_key = os.environ.get('STRIPE_SECRET_KEY')
-    # session = stripe.checkout.Session.create(
-    #     payment_method_types=['card'],
-    #     line_items=[{'price_data': {'currency': 'eur', 'product_data': {'name': f'Participation: {giveaway["title"]}'}, 'unit_amount': 100}, 'quantity': 1}],
-    #     mode='payment',
-    #     success_url=f'{BASE_URL}/#/giveaway/{giveaway_id}?payment=success',
-    #     cancel_url=f'{BASE_URL}/#/giveaway/{giveaway_id}?payment=cancel',
-    # )
-    # return (200, {"checkout_url": session.url})
+    # Invalidate cache on participation
+    _cache_invalidate()
 
     return (201, {
         "ticket": ticket,
@@ -242,13 +306,21 @@ def handle_participate(path_parts, body, headers=None):
 
 def handle_get_winners(path_parts, body, headers=None):
     """GET /api/winners - list past winners."""
+    cached = _cache_get("winners")
+    if cached is not None:
+        return (200, cached)
     winners = database.get_winners()
+    _cache_set("winners", winners)
     return (200, winners)
 
 
 def handle_get_stats(path_parts, body, headers=None):
     """GET /api/stats - platform statistics."""
+    cached = _cache_get("stats")
+    if cached is not None:
+        return (200, cached)
     stats = database.get_stats()
+    _cache_set("stats", stats)
     return (200, stats)
 
 
@@ -277,6 +349,7 @@ def handle_admin_create_giveaway(path_parts, body, headers=None):
         return (400, {"error": "title is required"})
 
     giveaway = database.create_giveaway(body)
+    _cache_invalidate()
     return (201, giveaway)
 
 
@@ -292,6 +365,7 @@ def handle_admin_update_giveaway(path_parts, body, headers=None):
         return (400, {"error": "Request body is required"})
 
     updated = database.update_giveaway(giveaway_id, body)
+    _cache_invalidate()
     return (200, updated)
 
 
@@ -310,6 +384,7 @@ def handle_admin_draw_winner(path_parts, body, headers=None):
     if not winner:
         return (400, {"error": "No participants to draw from"})
 
+    _cache_invalidate()
     return (200, {"winner": winner, "message": "Winner drawn successfully!"})
 
 
@@ -338,6 +413,7 @@ def handle_admin_delete_giveaway(path_parts, body, headers=None):
     if not deleted:
         return (404, {"error": "Giveaway not found"})
 
+    _cache_invalidate()
     return (200, {"message": "Giveaway supprime"})
 
 

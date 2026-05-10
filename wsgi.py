@@ -4,6 +4,7 @@ Compatible with PythonAnywhere free tier and any WSGI server.
 No external dependencies required - uses only Python stdlib.
 """
 
+import gzip
 import json
 import os
 import sys
@@ -38,6 +39,8 @@ MIME_TYPES = {
 
 BINARY_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".woff", ".woff2"}
 
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico"}
+
 # Initialize database on module load
 database.init_db()
 
@@ -48,6 +51,18 @@ def get_cors_headers():
         ("Access-Control-Allow-Origin", "*"),
         ("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS"),
         ("Access-Control-Allow-Headers", "Content-Type, Authorization"),
+    ]
+
+
+def get_security_headers():
+    """Return security headers as a list of tuples."""
+    return [
+        ("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;"),
+        ("Strict-Transport-Security", "max-age=31536000; includeSubDomains"),
+        ("X-Frame-Options", "DENY"),
+        ("X-Content-Type-Options", "nosniff"),
+        ("X-XSS-Protection", "1; mode=block"),
+        ("Referrer-Policy", "strict-origin-when-cross-origin"),
     ]
 
 
@@ -73,8 +88,22 @@ def serve_static_file(file_path):
             with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read().encode("utf-8")
 
-        headers = [("Content-Type", content_type)] + get_cors_headers()
+        headers = [("Content-Type", content_type)] + get_cors_headers() + get_security_headers()
         headers.append(("Content-Length", str(len(content))))
+
+        # Cache-Control based on file type
+        if ext in (".css", ".js"):
+            headers.append(("Cache-Control", "public, max-age=86400"))
+        elif ext in IMAGE_EXTENSIONS:
+            headers.append(("Cache-Control", "public, max-age=604800"))
+
+        # ETag based on file modification time
+        try:
+            etag_value = str(int(os.path.getmtime(str(file_path))))
+            headers.append(("ETag", etag_value))
+        except OSError:
+            pass
+
         return ("200 OK", headers, content)
     except (IOError, OSError):
         return None
@@ -127,6 +156,41 @@ def application(environ, start_response):
         start_response("204 No Content", headers)
         return [b""]
 
+    # robots.txt
+    if path == "/robots.txt":
+        robots_content = (
+            "User-agent: *\n"
+            "Allow: /\n"
+            "Disallow: /api/admin/\n"
+            "Sitemap: https://windrop.pythonanywhere.com/sitemap.xml\n"
+        ).encode("utf-8")
+        headers = [
+            ("Content-Type", "text/plain; charset=utf-8"),
+            ("Content-Length", str(len(robots_content))),
+        ] + get_cors_headers() + get_security_headers()
+        start_response("200 OK", headers)
+        return [robots_content]
+
+    # sitemap.xml
+    if path == "/sitemap.xml":
+        sitemap_content = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+            '  <url><loc>https://windrop.pythonanywhere.com/</loc><priority>1.0</priority></url>\n'
+            '  <url><loc>https://windrop.pythonanywhere.com/#/giveaways</loc><priority>0.9</priority></url>\n'
+            '  <url><loc>https://windrop.pythonanywhere.com/#/winners</loc><priority>0.7</priority></url>\n'
+            '  <url><loc>https://windrop.pythonanywhere.com/#/how-it-works</loc><priority>0.6</priority></url>\n'
+            '  <url><loc>https://windrop.pythonanywhere.com/#/faq</loc><priority>0.5</priority></url>\n'
+            '  <url><loc>https://windrop.pythonanywhere.com/#/contact</loc><priority>0.4</priority></url>\n'
+            '</urlset>\n'
+        ).encode("utf-8")
+        headers = [
+            ("Content-Type", "application/xml; charset=utf-8"),
+            ("Content-Length", str(len(sitemap_content))),
+        ] + get_cors_headers() + get_security_headers()
+        start_response("200 OK", headers)
+        return [sitemap_content]
+
     # Parse path into parts
     parts = [p for p in path.split("/") if p]
 
@@ -158,14 +222,22 @@ def application(environ, start_response):
             401: "401 Unauthorized",
             403: "403 Forbidden",
             404: "404 Not Found",
+            429: "429 Too Many Requests",
             500: "500 Internal Server Error",
         }
         status_str = status_map.get(status_code, f"{status_code} Response")
 
         response_headers = [
             ("Content-Type", "application/json; charset=utf-8"),
-            ("Content-Length", str(len(response_body))),
-        ] + get_cors_headers()
+        ] + get_cors_headers() + get_security_headers()
+
+        # Gzip compression for API responses
+        accept_encoding = environ.get("HTTP_ACCEPT_ENCODING", "")
+        if "gzip" in accept_encoding and len(response_body) > 256:
+            response_body = gzip.compress(response_body)
+            response_headers.append(("Content-Encoding", "gzip"))
+
+        response_headers.append(("Content-Length", str(len(response_body))))
 
         start_response(status_str, response_headers)
         return [response_body]
@@ -203,6 +275,6 @@ def application(environ, start_response):
     headers = [
         ("Content-Type", "text/html; charset=utf-8"),
         ("Content-Length", str(len(fallback_body))),
-    ] + get_cors_headers()
+    ] + get_cors_headers() + get_security_headers()
     start_response("200 OK", headers)
     return [fallback_body]
