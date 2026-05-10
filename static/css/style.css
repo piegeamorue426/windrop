@@ -1055,83 +1055,41 @@ input, textarea, select { font-family: inherit; }
 .mb-2 { margin-bottom: 1rem; }
 .mt-3 { margin-top: 2rem; }
 
-/* Winner Wheel */
-.wheel-container {
-  position: relative;
+/* Slot Machine Animation */
+.slot-container {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 2rem auto;
-  max-width: 500px;
-  width: 100%;
-  aspect-ratio: 1;
+  gap: 0.5rem;
+  margin: 1rem 0;
 }
-.wheel-canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  box-shadow: 0 0 40px rgba(255, 30, 30, 0.2), inset 0 0 30px rgba(0,0,0,0.5);
-  transition: box-shadow 0.5s ease;
+.slot-window {
+  width: 200px;
+  height: 50px;
+  overflow: hidden;
+  border: 2px solid var(--accent-red);
+  border-radius: 8px;
+  background: #111;
 }
-.wheel-canvas-glow {
-  box-shadow: 0 0 60px rgba(255, 30, 30, 0.6), 0 0 120px rgba(255, 30, 30, 0.3), inset 0 0 30px rgba(0,0,0,0.5);
+.slot-reel {
+  transition: none;
 }
-.wheel-pointer {
-  position: absolute;
-  top: -5px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 2rem;
-  color: #ff1e1e;
-  z-index: 10;
-  text-shadow: 0 0 15px rgba(255, 30, 30, 0.8), 0 2px 4px rgba(0,0,0,0.8);
-  filter: drop-shadow(0 0 6px rgba(255, 30, 30, 0.6));
-}
-.wheel-congrats {
+.slot-item {
+  height: 50px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-top: 2rem;
-  animation: fade-in 0.6s ease-out;
-}
-.wheel-congrats-inner {
-  text-align: center;
-  padding: 2rem;
-  background: var(--bg-card);
-  border: 2px solid rgba(255, 30, 30, 0.5);
-  border-radius: var(--radius);
-  box-shadow: 0 0 40px rgba(255, 30, 30, 0.3), 0 20px 60px rgba(0,0,0,0.5);
-  animation: wheel-winner-pop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-.wheel-congrats-icon {
-  font-size: 3rem;
-  margin-bottom: 0.5rem;
-  animation: countdown-pulse 1.5s infinite;
-}
-.wheel-congrats-title {
-  font-size: 1.5rem;
-  font-weight: 900;
-  color: #ff1e1e;
-  letter-spacing: 4px;
-  text-shadow: 0 0 20px rgba(255, 30, 30, 0.6);
-  margin-bottom: 0.5rem;
-}
-.wheel-congrats-name {
-  font-size: 2rem;
-  font-weight: 900;
-  color: #ffffff;
-  text-shadow: 0 0 15px rgba(255, 30, 30, 0.4);
-  margin-bottom: 0.5rem;
-}
-.wheel-congrats-sub {
   font-size: 1rem;
-  color: var(--text-secondary);
+  font-weight: 600;
+  color: #fff;
 }
-@keyframes wheel-winner-pop {
-  0% { transform: scale(0.5); opacity: 0; }
-  70% { transform: scale(1.05); }
-  100% { transform: scale(1); opacity: 1; }
+.slot-item.slot-winner {
+  color: var(--accent-red);
+  text-shadow: 0 0 10px rgba(255, 30, 30, 0.8);
+}
+.slot-pointer {
+  font-size: 1.2rem;
+  color: var(--accent-red);
 }
 
 /* Admin quick time buttons */

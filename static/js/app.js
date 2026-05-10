@@ -324,43 +324,6 @@
       var timeExpired = countdownText === 'Termine';
       var isFinished = ended || timeExpired;
 
-      // Check if giveaway has ended - show wheel animation
-      if (g.status === 'ended') {
-        try {
-          var winners = await api('/api/winners');
-          var winnerEntry = null;
-          for (var i = 0; i < winners.length; i++) {
-            if (winners[i].giveaway_id == id) {
-              winnerEntry = winners[i];
-              break;
-            }
-          }
-          if (winnerEntry) {
-            var participants = await api('/api/giveaways/' + id + '/participants');
-            if (participants.length > 0) {
-              app.innerHTML =
-                '<div class="page container detail-page">' +
-                  '<h1 class="section-title" style="margin-bottom:0.5rem">' + escapeHtml(g.title) + '</h1>' +
-                  '<p class="section-subtitle">Tirage au sort</p>' +
-                  '<div id="wheel-container" class="wheel-container"></div>' +
-                  '<div id="wheel-congrats" class="wheel-congrats" style="display:none">' +
-                    '<div class="wheel-congrats-inner">' +
-                      '<div class="wheel-congrats-icon">&#127942;</div>' +
-                      '<div class="wheel-congrats-title">GAGNANT</div>' +
-                      '<div class="wheel-congrats-name">' + escapeHtml(winnerEntry.username) + '</div>' +
-                      '<div class="wheel-congrats-sub">Felicitations !</div>' +
-                    '</div>' +
-                  '</div>' +
-                '</div>';
-              renderWinnerWheel(id, winnerEntry.username, participants);
-              return;
-            }
-          }
-        } catch(e) {
-          // Fall through to normal detail view if wheel data fails
-        }
-      }
-
       app.innerHTML =
         '<div class="page container detail-page">' +
           '<div class="detail-header">' +
@@ -395,165 +358,6 @@
     } catch (err) {
       app.innerHTML = '<div class="error-msg">Giveaway introuvable</div>';
     }
-  }
-
-  // Winner Wheel Animation
-  function renderWinnerWheel(giveawayId, winnerName, participants) {
-    var container = document.getElementById('wheel-container');
-    if (!container) return;
-
-    var names = participants.map(function(p) { return p.username; });
-    if (names.length === 0) return;
-
-    // Ensure winner is in the list
-    var winnerIndex = -1;
-    for (var i = 0; i < names.length; i++) {
-      if (names[i] === winnerName) { winnerIndex = i; break; }
-    }
-    if (winnerIndex === -1) {
-      names.push(winnerName);
-      winnerIndex = names.length - 1;
-    }
-
-    var numSegments = names.length;
-    var segmentAngle = (2 * Math.PI) / numSegments;
-
-    // Colors for segments
-    var segmentColors = ['#1a0505', '#1f1f1f', '#0d0d0d', '#2a0a0a', '#151515', '#110303'];
-
-    // Canvas setup
-    var size = Math.min(container.clientWidth || 400, 500);
-    var canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    canvas.className = 'wheel-canvas';
-    container.innerHTML = '';
-
-    // Add pointer
-    var pointer = document.createElement('div');
-    pointer.className = 'wheel-pointer';
-    pointer.innerHTML = '&#9660;';
-    container.appendChild(pointer);
-    container.appendChild(canvas);
-
-    var ctx = canvas.getContext('2d');
-    var centerX = size / 2;
-    var centerY = size / 2;
-    var radius = (size / 2) - 10;
-
-    // Calculate final angle: pointer is at top (3*PI/2 from positive x-axis)
-    // We want the winner segment center to be at the top when rotation stops
-    var winnerSegmentCenter = winnerIndex * segmentAngle + segmentAngle / 2;
-    // The pointer is at top = -PI/2 (or 3PI/2)
-    // Final rotation should place winner under the pointer
-    var pointerAngle = -Math.PI / 2;
-    var targetAngle = pointerAngle - winnerSegmentCenter;
-    // Add multiple full rotations for visual effect
-    var totalRotations = 8;
-    var finalAngle = targetAngle + (totalRotations * 2 * Math.PI);
-
-    // Animation parameters
-    var startTime = null;
-    var spinDuration = 7000; // 7 seconds total
-    var currentAngle = 0;
-
-    function easeOutQuart(t) {
-      return 1 - Math.pow(1 - t, 4);
-    }
-
-    function drawWheel(angle) {
-      ctx.clearRect(0, 0, size, size);
-
-      // Draw outer ring glow
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, radius + 4, 0, 2 * Math.PI);
-      ctx.strokeStyle = 'rgba(255, 30, 30, 0.4)';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-
-      for (var i = 0; i < numSegments; i++) {
-        var startAngle = angle + i * segmentAngle;
-        var endAngle = startAngle + segmentAngle;
-
-        // Draw segment
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY);
-        ctx.arc(centerX, centerY, radius, startAngle, endAngle);
-        ctx.closePath();
-        ctx.fillStyle = segmentColors[i % segmentColors.length];
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(255, 30, 30, 0.3)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        // Draw text
-        ctx.save();
-        ctx.translate(centerX, centerY);
-        ctx.rotate(startAngle + segmentAngle / 2);
-        ctx.textAlign = 'right';
-        ctx.textBaseline = 'middle';
-        var fontSize = Math.max(10, Math.min(14, 200 / numSegments));
-        ctx.font = 'bold ' + fontSize + 'px system-ui, sans-serif';
-        ctx.fillStyle = '#ffffff';
-        ctx.shadowColor = 'rgba(255, 30, 30, 0.5)';
-        ctx.shadowBlur = 4;
-        var displayName = names[i];
-        if (displayName.length > 12) displayName = displayName.substring(0, 11) + '..';
-        ctx.fillText(displayName, radius - 15, 0);
-        ctx.restore();
-      }
-
-      // Draw center circle
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, 25, 0, 2 * Math.PI);
-      ctx.fillStyle = '#0b0b0b';
-      ctx.fill();
-      ctx.strokeStyle = '#ff1e1e';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-
-      // Draw center dot
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, 8, 0, 2 * Math.PI);
-      ctx.fillStyle = '#ff1e1e';
-      ctx.shadowColor = 'rgba(255, 30, 30, 0.8)';
-      ctx.shadowBlur = 10;
-      ctx.fill();
-      ctx.shadowBlur = 0;
-    }
-
-    function animate(timestamp) {
-      if (!startTime) startTime = timestamp;
-      var elapsed = timestamp - startTime;
-      var progress = Math.min(elapsed / spinDuration, 1);
-
-      // Use easing for smooth slowdown
-      var easedProgress = easeOutQuart(progress);
-      currentAngle = easedProgress * finalAngle;
-
-      drawWheel(currentAngle);
-
-      if (progress < 1) {
-        requestAnimationFrame(animate);
-      } else {
-        // Animation complete - show winner
-        setTimeout(showWinnerCongrats, 500);
-      }
-    }
-
-    function showWinnerCongrats() {
-      var congratsEl = document.getElementById('wheel-congrats');
-      if (congratsEl) {
-        congratsEl.style.display = 'flex';
-      }
-      // Add glow to canvas
-      canvas.classList.add('wheel-canvas-glow');
-    }
-
-    // Start animation after a short delay
-    setTimeout(function() {
-      requestAnimationFrame(animate);
-    }, 500);
   }
 
   // Generate persistent browser fingerprint for anti-fraud
@@ -688,6 +492,119 @@
     };
   };
 
+  // Winner Slot Machine Animation
+  window.showWinnerAnimation = async function(giveawayId, winnerUsername) {
+    // Create modal overlay
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML =
+      '<div class="modal" style="max-width:340px;text-align:center">' +
+        '<h2 style="margin-bottom:1rem">Tirage au sort</h2>' +
+        '<div class="slot-container">' +
+          '<span class="slot-pointer">&#9654;</span>' +
+          '<div class="slot-window"><div class="slot-reel"></div></div>' +
+          '<span class="slot-pointer">&#9664;</span>' +
+        '</div>' +
+        '<div class="slot-result" style="display:none;margin-top:1.5rem">' +
+          '<div style="font-size:1.5rem;font-weight:900;color:var(--accent-red);letter-spacing:3px;text-shadow:0 0 20px rgba(255,30,30,0.6)">GAGNANT</div>' +
+          '<div class="slot-winner-name" style="font-size:1.5rem;font-weight:900;margin-top:0.5rem"></div>' +
+          '<div style="margin-top:0.5rem;color:var(--text-secondary)">Felicitations !</div>' +
+        '</div>' +
+        '<p style="margin-top:1.5rem;font-size:0.8rem;color:var(--text-secondary)">Cliquez pour fermer</p>' +
+      '</div>';
+
+    document.body.appendChild(overlay);
+
+    // Close on click
+    overlay.addEventListener('click', function() {
+      overlay.remove();
+    });
+    // Prevent modal inner clicks from closing immediately during animation
+    overlay.querySelector('.modal').addEventListener('click', function(e) {
+      e.stopPropagation();
+    });
+
+    var reel = overlay.querySelector('.slot-reel');
+    var resultEl = overlay.querySelector('.slot-result');
+    var winnerNameEl = overlay.querySelector('.slot-winner-name');
+
+    // Fetch participants
+    try {
+      var participants = await api('/api/giveaways/' + giveawayId + '/participants');
+      var names = participants.map(function(p) { return p.username; });
+      if (names.length === 0) names = [winnerUsername];
+
+      // Ensure winner is in the list
+      var hasWinner = false;
+      for (var i = 0; i < names.length; i++) {
+        if (names[i] === winnerUsername) { hasWinner = true; break; }
+      }
+      if (!hasWinner) names.push(winnerUsername);
+
+      // Build reel items: repeat names multiple times, end on winner
+      var reelNames = [];
+      var totalItems = Math.max(30, names.length * 5);
+      for (var j = 0; j < totalItems; j++) {
+        reelNames.push(names[j % names.length]);
+      }
+      // Ensure last item is the winner
+      reelNames.push(winnerUsername);
+
+      // Create DOM items
+      reel.innerHTML = '';
+      for (var k = 0; k < reelNames.length; k++) {
+        var item = document.createElement('div');
+        item.className = 'slot-item';
+        item.textContent = reelNames[k];
+        reel.appendChild(item);
+      }
+
+      // Animate: scroll the reel using translateY
+      var itemHeight = 50;
+      var totalDistance = (reelNames.length - 1) * itemHeight;
+      var duration = 4000;
+      var startTime = null;
+
+      function easeOutCubic(t) {
+        return 1 - Math.pow(1 - t, 3);
+      }
+
+      function animateReel(timestamp) {
+        if (!startTime) startTime = timestamp;
+        var elapsed = timestamp - startTime;
+        var progress = Math.min(elapsed / duration, 1);
+        var easedProgress = easeOutCubic(progress);
+        var currentY = easedProgress * totalDistance;
+        reel.style.transform = 'translateY(-' + currentY + 'px)';
+
+        if (progress < 1) {
+          requestAnimationFrame(animateReel);
+        } else {
+          // Animation done, highlight winner
+          var lastItem = reel.lastElementChild;
+          if (lastItem) lastItem.classList.add('slot-winner');
+          resultEl.style.display = 'block';
+          winnerNameEl.textContent = winnerUsername;
+          // Allow closing from anywhere now
+          overlay.querySelector('.modal').addEventListener('click', function() {
+            overlay.remove();
+          });
+        }
+      }
+
+      // Start after a brief delay
+      setTimeout(function() {
+        requestAnimationFrame(animateReel);
+      }, 300);
+
+    } catch (err) {
+      // If fetch fails, just show the winner directly
+      reel.innerHTML = '<div class="slot-item slot-winner">' + escapeHtml(winnerUsername) + '</div>';
+      resultEl.style.display = 'block';
+      winnerNameEl.textContent = winnerUsername;
+    }
+  };
+
   // PAGE: Winners
   async function renderWinners() {
     const app = getApp();
@@ -705,12 +622,12 @@
             (list.length > 0 ? list.map(w => {
               var statusClass = w.shipping_status === 'delivered' ? 'shipping-delivered' : (w.shipping_status === 'shipped' ? 'shipping-shipped' : 'shipping-pending');
               var statusText = w.shipping_status === 'delivered' ? 'Livre' : (w.shipping_status === 'shipped' ? 'Expedie' : 'En preparation');
-              return '<div class="winner-card" onclick="location.hash=\'#/giveaway/' + escapeHtml(w.giveaway_id) + '\'" style="cursor:pointer">' +
+              return '<div class="winner-card" onclick="window.showWinnerAnimation(' + escapeHtml(w.giveaway_id) + ', \'' + escapeHtml(w.username || 'Anonyme').replace(/'/g, "\\'") + '\')" style="cursor:pointer">' +
                 '<div class="winner-username">' + escapeHtml(w.username || 'Anonyme') + '</div>' +
                 '<div class="winner-product">' + escapeHtml(w.giveaway_title || 'Produit') + '</div>' +
                 '<div class="winner-date">' + escapeHtml(w.drawn_at ? new Date(w.drawn_at).toLocaleDateString('fr-FR') : '') + '</div>' +
                 '<span class="shipping-badge ' + statusClass + '">' + escapeHtml(statusText) + '</span>' +
-                '<div style="margin-top:0.5rem;font-size:0.8rem;color:var(--accent)">&#127922; Voir le tirage</div>' +
+                '<div style="margin-top:0.5rem;font-size:0.8rem;color:var(--accent-red)">&#127922; Voir le tirage</div>' +
               '</div>';
             }).join('') : '<p class="text-center" style="color:var(--text-secondary)">Aucun gagnant pour le moment</p>') +
           '</div>' +
