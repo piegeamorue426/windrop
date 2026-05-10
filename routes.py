@@ -265,7 +265,8 @@ def handle_participate(path_parts, body, headers=None):
     # Anti-fraud: extract IP and fingerprint
     ip_address = ""
     if headers:
-        ip_address = headers.get("X-Forwarded-For", "") or headers.get("X-Real-Ip", "") or ""
+        # Try X-Forwarded-For first (proxy), then X-Real-Ip, then Remote-Addr (WSGI direct)
+        ip_address = headers.get("X-Forwarded-For", "") or headers.get("X-Real-Ip", "") or headers.get("Remote-Addr", "") or ""
         # Take first IP if X-Forwarded-For has multiple
         if "," in ip_address:
             ip_address = ip_address.split(",")[0].strip()

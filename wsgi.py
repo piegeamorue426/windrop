@@ -133,7 +133,7 @@ def get_headers_from_environ(environ):
     headers = {}
     for key, value in environ.items():
         if key.startswith("HTTP_"):
-            # Convert HTTP_CONTENT_TYPE -> Content-Type
+            # Convert HTTP_X_FORWARDED_FOR -> X-Forwarded-For
             header_name = key[5:].replace("_", "-").title()
             headers[header_name] = value
     # Content-Type and Content-Length are special in WSGI
@@ -141,6 +141,9 @@ def get_headers_from_environ(environ):
         headers["Content-Type"] = environ["CONTENT_TYPE"]
     if "CONTENT_LENGTH" in environ:
         headers["Content-Length"] = environ["CONTENT_LENGTH"]
+    # CRITICAL: Pass REMOTE_ADDR for IP detection on PythonAnywhere
+    if "REMOTE_ADDR" in environ:
+        headers["Remote-Addr"] = environ["REMOTE_ADDR"]
     return headers
 
 

@@ -360,27 +360,79 @@
     }
   }
 
-  // Generate browser fingerprint for anti-fraud
+  // Generate persistent browser fingerprint for anti-fraud
+  // Uses localStorage to persist a unique device ID that survives page reloads
   function generateFingerprint() {
-    var data = [
+    // Layer 1: Persistent device ID (stored in localStorage)
+    var deviceId = '';
+    try {
+      deviceId = localStorage.getItem('_wdid') || '';
+      if (!deviceId) {
+        // Generate a cryptographically random ID
+        var arr = new Uint8Array(16);
+        crypto.getRandomValues(arr);
+        deviceId = Array.from(arr).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+        localStorage.setItem('_wdid', deviceId);
+      }
+    } catch(e) {
+      deviceId = 'no_storage';
+    }
+
+    // Layer 2: Hardware fingerprint (harder to spoof)
+    var hwData = [
       screen.width, screen.height, screen.colorDepth,
       navigator.language, navigator.platform,
       new Date().getTimezoneOffset(),
-      navigator.hardwareConcurrency || '',
-      navigator.userAgent
+      navigator.hardwareConcurrency || 0,
+      (navigator.deviceMemory || 0),
+      navigator.maxTouchPoints || 0,
+      screen.availWidth, screen.availHeight
     ].join('|');
-    // Simple hash
+
+    // Layer 3: Canvas fingerprint
+    var canvasHash = '';
+    try {
+      var canvas = document.createElement('canvas');
+      canvas.width = 200;
+      canvas.height = 50;
+      var ctx = canvas.getContext('2d');
+      ctx.textBaseline = 'top';
+      ctx.font = '14px Arial';
+      ctx.fillStyle = '#f60';
+      ctx.fillRect(125, 1, 62, 20);
+      ctx.fillStyle = '#069';
+      ctx.fillText('Windrop', 2, 15);
+      ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
+      ctx.fillText('test123', 4, 17);
+      canvasHash = canvas.toDataURL().slice(-50);
+    } catch(e) {
+      canvasHash = 'no_canvas';
+    }
+
+    // Combine all layers
+    var combined = deviceId + '|' + hwData + '|' + canvasHash;
+
+    // Hash it
     var hash = 0;
-    for (var i = 0; i < data.length; i++) {
-      var char = data.charCodeAt(i);
+    for (var i = 0; i < combined.length; i++) {
+      var char = combined.charCodeAt(i);
       hash = ((hash << 5) - hash) + char;
       hash = hash & hash;
     }
-    return 'fp_' + Math.abs(hash).toString(36);
+
+    // Return deviceId + hash (deviceId is the persistent part)
+    return deviceId + '_' + Math.abs(hash).toString(36);
   }
 
   // Participate Modal
   window.showParticipateModal = function(giveawayId) {
+    // Check if already participated via localStorage marker
+    var participatedKey = '_wp_' + giveawayId;
+    if (localStorage.getItem(participatedKey)) {
+      alert('Vous avez deja participe a ce giveaway depuis cet appareil.');
+      return;
+    }
+
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.innerHTML =
@@ -427,6 +479,8 @@
           method: 'POST',
           body: JSON.stringify({ username: username, email: email, fingerprint: fingerprint })
         });
+        // Mark as participated in localStorage (anti-fraud client-side)
+        try { localStorage.setItem('_wp_' + giveawayId, '1'); } catch(e) {}
         successEl.innerHTML = '<div class="success-msg">Participation confirmee ! Bonne chance ' + escapeHtml(username) + ' !</div>';
         successEl.style.display = 'block';
         overlay.querySelector('.modal-actions').style.display = 'none';
