@@ -104,6 +104,12 @@ def init_db():
         )
     """)
 
+    # Add email column to participation_fingerprints if not present
+    try:
+        cursor.execute("ALTER TABLE participation_fingerprints ADD COLUMN email TEXT DEFAULT ''")
+    except Exception:
+        pass
+
     # Performance indexes
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_giveaways_status ON giveaways(status)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_giveaways_created_at ON giveaways(created_at)")
@@ -341,15 +347,35 @@ def update_shipping(winner_id, status, proof_url):
 
 
 def get_giveaway_participants(giveaway_id):
-    """Get all participants for a giveaway."""
+    """Get all participants for a giveaway with full anti-fraud info."""
     conn = get_connection()
     cursor = conn.execute("""
-        SELECT t.*, u.username, u.email
+        SELECT t.id, t.created_at, u.username, u.email,
+               pf.ip_address, pf.fingerprint
         FROM tickets t
         JOIN users u ON t.user_id = u.id
+        LEFT JOIN participation_fingerprints pf ON pf.giveaway_id = t.giveaway_id AND pf.user_id = t.user_id
         WHERE t.giveaway_id = ?
         ORDER BY t.created_at DESC
     """, (giveaway_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def get_all_participants():
+    """Get all participants across all giveaways with full info."""
+    conn = get_connection()
+    cursor = conn.execute("""
+        SELECT t.id, t.created_at, u.username, u.email,
+               g.title as giveaway_title,
+               pf.ip_address, pf.fingerprint
+        FROM tickets t
+        JOIN users u ON t.user_id = u.id
+        JOIN giveaways g ON t.giveaway_id = g.id
+        LEFT JOIN participation_fingerprints pf ON pf.giveaway_id = t.giveaway_id AND pf.user_id = t.user_id
+        ORDER BY t.created_at DESC
+    """)
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
@@ -436,15 +462,15 @@ def check_duplicate_participation(giveaway_id, ip_address, fingerprint):
     return row is not None
 
 
-def record_participation_fingerprint(giveaway_id, user_id, ip_address, fingerprint):
+def record_participation_fingerprint(giveaway_id, user_id, ip_address, fingerprint, email=""):
     """Record participation fingerprint for anti-fraud tracking."""
     conn = get_connection()
     now = datetime.now(timezone.utc).isoformat()
     conn.execute(
         """INSERT INTO participation_fingerprints
-           (giveaway_id, user_id, ip_address, fingerprint, created_at)
-           VALUES (?, ?, ?, ?, ?)""",
-        (giveaway_id, user_id, ip_address, fingerprint, now)
+           (giveaway_id, user_id, ip_address, fingerprint, email, created_at)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (giveaway_id, user_id, ip_address, fingerprint, email, now)
     )
     conn.commit()
     conn.close()
@@ -464,6 +490,22 @@ def get_recent_participations_by_ip(ip_address, hours=1):
     return count
 
 
+def get_recent_activity(limit=5):
+    """Get the most recent participations with username and giveaway title."""
+    conn = get_connection()
+    cursor = conn.execute("""
+        SELECT t.created_at, u.username, g.title as giveaway_title
+        FROM tickets t
+        JOIN users u ON t.user_id = u.id
+        JOIN giveaways g ON t.giveaway_id = g.id
+        ORDER BY t.created_at DESC
+        LIMIT ?
+    """, (limit,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
 def check_fingerprint_multi_account(fingerprint, hours=24):
     """Count distinct user_ids associated with a fingerprint in the last N hours."""
     from datetime import timedelta
@@ -476,3 +518,43 @@ def check_fingerprint_multi_account(fingerprint, hours=24):
     count = cursor.fetchone()["count"]
     conn.close()
     return count
+
+
+def check_email_participated(giveaway_id, email):
+    """Check if this email has already participated in this giveaway."""
+    conn = get_connection()
+    cursor = conn.execute(
+        """SELECT t.id FROM tickets t
+           JOIN users u ON t.user_id = u.id
+           WHERE t.giveaway_id = ? AND LOWER(u.email) = LOWER(?)""",
+        (giveaway_id, email)
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return row is not None
+
+
+def check_ip_participated(giveaway_id, ip_address):
+    """Check if this IP has already participated in this giveaway."""
+    conn = get_connection()
+    cursor = conn.execute(
+        """SELECT id FROM participation_fingerprints
+           WHERE giveaway_id = ? AND ip_address = ? AND ip_address != ''""",
+        (giveaway_id, ip_address)
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return row is not None
+
+
+def check_fingerprint_participated(giveaway_id, fingerprint):
+    """Check if this fingerprint has already participated in this giveaway."""
+    conn = get_connection()
+    cursor = conn.execute(
+        """SELECT id FROM participation_fingerprints
+           WHERE giveaway_id = ? AND fingerprint = ? AND fingerprint != ''""",
+        (giveaway_id, fingerprint)
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return row is not None

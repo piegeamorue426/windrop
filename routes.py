@@ -198,6 +198,12 @@ def handle_admin_upload(path_parts, body, headers=None, raw_body=None):
     return (200, {"url": "/static/uploads/" + unique_name})
 
 
+def handle_get_recent_activity(path_parts, body, headers=None):
+    """GET /api/recent-activity - return last 5 real participations."""
+    activity = database.get_recent_activity(5)
+    return (200, activity)
+
+
 def handle_get_giveaways(path_parts, body, headers=None):
     """GET /api/giveaways - list active giveaways."""
     auto_expire_giveaways()
@@ -278,10 +284,18 @@ def handle_participate(path_parts, body, headers=None):
         if multi_count >= 5:
             return (400, {"error": "Activite suspecte detectee sur cet appareil."})
 
-    # Check for duplicate participation by device/IP
-    if ip_address or fingerprint:
-        if database.check_duplicate_participation(giveaway_id, ip_address, fingerprint):
-            return (400, {"error": "Vous avez deja participe a ce giveaway depuis cet appareil"})
+    # Anti-fraud: ALWAYS check for duplicate participation
+    # 1. Same email already participated in this giveaway
+    if database.check_email_participated(giveaway_id, email):
+        return (400, {"error": "Cette adresse email a deja participe a ce giveaway"})
+
+    # 2. Same IP (if available)
+    if ip_address and database.check_ip_participated(giveaway_id, ip_address):
+        return (400, {"error": "Une participation a deja ete enregistree depuis cette connexion"})
+
+    # 3. Same fingerprint (if available)
+    if fingerprint and database.check_fingerprint_participated(giveaway_id, fingerprint):
+        return (400, {"error": "Une participation a deja ete enregistree depuis cet appareil"})
 
     user = database.get_or_create_user(username, email)
 
@@ -290,9 +304,8 @@ def handle_participate(path_parts, body, headers=None):
     except ValueError:
         return (400, {"error": "Vous participez deja a ce giveaway"})
 
-    # Record fingerprint for anti-fraud
-    if ip_address or fingerprint:
-        database.record_participation_fingerprint(giveaway_id, user["id"], ip_address, fingerprint)
+    # Record fingerprint for anti-fraud (always record, include email)
+    database.record_participation_fingerprint(giveaway_id, user["id"], ip_address, fingerprint, email)
 
     # Invalidate cache on participation
     _cache_invalidate()
@@ -441,6 +454,12 @@ def handle_admin_get_participants(path_parts, body, headers=None):
     return (200, participants)
 
 
+def handle_admin_all_participants(path_parts, body, headers=None):
+    """GET /api/admin/all-participants - list all participants across all giveaways."""
+    participants = database.get_all_participants()
+    return (200, participants)
+
+
 def route_request(method, path_parts, body, headers=None, raw_body=None):
     """Route a request to the appropriate handler.
 
@@ -456,6 +475,10 @@ def route_request(method, path_parts, body, headers=None, raw_body=None):
     path_str = "/".join(path_parts)
 
     # Public API routes
+    # GET /api/recent-activity
+    if method == "GET" and path_str == "api/recent-activity":
+        return handle_get_recent_activity(path_parts, body, headers)
+
     # GET /api/giveaways
     if method == "GET" and path_str == "api/giveaways":
         return handle_get_giveaways(path_parts, body, headers)
@@ -500,6 +523,10 @@ def route_request(method, path_parts, body, headers=None, raw_body=None):
         # GET /api/admin/messages
         if method == "GET" and path_str == "api/admin/messages":
             return handle_admin_get_messages(path_parts, body, headers)
+
+        # GET /api/admin/all-participants
+        if method == "GET" and path_str == "api/admin/all-participants":
+            return handle_admin_all_participants(path_parts, body, headers)
 
         # POST /api/admin/giveaways
         if method == "POST" and path_str == "api/admin/giveaways":

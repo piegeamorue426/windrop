@@ -170,16 +170,14 @@
     }
   }
 
-  // Activity Feed
-  var activityFeedInterval = null;
+  // Real Activity Feed
+  var activityFeedTimeout = null;
   var activityFeedContainer = null;
-  var activityGiveawayTitles = [];
-  var activityNames = ['Lucas', 'Emma', 'Hugo', 'Lea', 'Louis', 'Manon', 'Raphael', 'Jade', 'Arthur', 'Louise', 'Jules', 'Alice', 'Adam', 'Lina', 'Mathis', 'Rose', 'Nathan', 'Chloe', 'Tom', 'Camille'];
 
   function clearActivityFeed() {
-    if (activityFeedInterval) {
-      clearTimeout(activityFeedInterval);
-      activityFeedInterval = null;
+    if (activityFeedTimeout) {
+      clearTimeout(activityFeedTimeout);
+      activityFeedTimeout = null;
     }
     if (activityFeedContainer && activityFeedContainer.parentNode) {
       activityFeedContainer.parentNode.removeChild(activityFeedContainer);
@@ -187,30 +185,26 @@
     activityFeedContainer = null;
   }
 
-  function startActivityFeed(giveawayTitles) {
+  function startRealActivityFeed() {
     clearActivityFeed();
-    activityGiveawayTitles = giveawayTitles.length > 0 ? giveawayTitles : ['un giveaway'];
-    activityFeedContainer = document.createElement('div');
-    activityFeedContainer.className = 'activity-feed';
-    document.body.appendChild(activityFeedContainer);
-    scheduleNextToast();
+    fetch('/api/recent-activity')
+      .then(function(res) { return res.json(); })
+      .then(function(activities) {
+        if (!Array.isArray(activities) || activities.length === 0) return;
+        activityFeedContainer = document.createElement('div');
+        activityFeedContainer.className = 'activity-feed';
+        document.body.appendChild(activityFeedContainer);
+        showRealToasts(activities, 0);
+      })
+      .catch(function() { /* silently ignore errors */ });
   }
 
-  function scheduleNextToast() {
-    var delay = 8000 + Math.floor(Math.random() * 4000);
-    activityFeedInterval = setTimeout(function() {
-      showActivityToast();
-      scheduleNextToast();
-    }, delay);
-  }
-
-  function showActivityToast() {
-    if (!activityFeedContainer) return;
-    var name = activityNames[Math.floor(Math.random() * activityNames.length)];
-    var title = activityGiveawayTitles[Math.floor(Math.random() * activityGiveawayTitles.length)];
+  function showRealToasts(activities, index) {
+    if (!activityFeedContainer || index >= activities.length) return;
+    var item = activities[index];
     var toast = document.createElement('div');
     toast.className = 'activity-toast';
-    toast.textContent = name + ' vient de participer a ' + title;
+    toast.textContent = item.username + ' a participe a ' + item.giveaway_title;
     activityFeedContainer.appendChild(toast);
     setTimeout(function() {
       toast.classList.add('fade-out');
@@ -218,6 +212,11 @@
         if (toast.parentNode) toast.parentNode.removeChild(toast);
       }, 400);
     }, 4000);
+    if (index + 1 < activities.length) {
+      activityFeedTimeout = setTimeout(function() {
+        showRealToasts(activities, index + 1);
+      }, 5000);
+    }
   }
 
   // PAGE: Home
@@ -281,9 +280,8 @@
       startCountdowns();
       observeCards();
 
-      // Start activity feed with giveaway titles
-      var titles = featured.map(function(g) { return g.title || 'un giveaway'; });
-      startActivityFeed(titles);
+      // Start real activity feed
+      startRealActivityFeed();
     } catch (err) {
       app.innerHTML = '<div class="error-msg">Erreur de chargement: ' + escapeHtml(err.message) + '</div>';
     }
