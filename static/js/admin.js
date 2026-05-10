@@ -268,6 +268,7 @@
                     '<option value="shipped"' + (w.shipping_status === 'shipped' ? ' selected' : '') + '>Expedie</option>' +
                     '<option value="delivered"' + (w.shipping_status === 'delivered' ? ' selected' : '') + '>Livre</option>' +
                   '</select>' +
+                  ' <button class="btn btn-sm btn-danger" onclick="window.adminDeleteWinner(' + w.id + ')">Supprimer</button>' +
                 '</td>' +
               '</tr>';
             }).join('') +
@@ -595,6 +596,16 @@
         method: 'PUT',
         body: JSON.stringify({ status: status, proof_url: '' })
       });
+    } catch (err) {
+      alert('Erreur: ' + err.message);
+    }
+  };
+
+  window.adminDeleteWinner = async function(winnerId) {
+    if (!confirm('Supprimer ce gagnant ? Le giveaway sera remis en statut actif.')) return;
+    try {
+      await adminApi('/api/admin/winners/' + winnerId, { method: 'DELETE' });
+      renderAdminWinners();
     } catch (err) {
       alert('Erreur: ' + err.message);
     }

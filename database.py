@@ -558,3 +558,32 @@ def check_fingerprint_participated(giveaway_id, fingerprint):
     row = cursor.fetchone()
     conn.close()
     return row is not None
+
+
+def delete_winner(winner_id):
+    """Delete a winner and reset the associated giveaway back to active.
+
+    Returns True if the winner existed and was deleted, False otherwise.
+    """
+    conn = get_connection()
+    cursor = conn.execute("SELECT * FROM winners WHERE id = ?", (winner_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return False
+
+    winner = dict(row)
+    giveaway_id = winner["giveaway_id"]
+
+    # Delete the winner entry
+    conn.execute("DELETE FROM winners WHERE id = ?", (winner_id,))
+
+    # Reset giveaway status back to active and clear winner_id
+    conn.execute(
+        "UPDATE giveaways SET status = 'active', winner_id = NULL WHERE id = ?",
+        (giveaway_id,)
+    )
+
+    conn.commit()
+    conn.close()
+    return True

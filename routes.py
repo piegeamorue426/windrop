@@ -441,6 +441,18 @@ def handle_admin_delete_giveaway(path_parts, body, headers=None):
     return (200, {"message": "Giveaway supprime"})
 
 
+def handle_admin_delete_winner(path_parts, body, headers=None):
+    """DELETE /api/admin/winners/{id} - delete a winner and reset giveaway."""
+    winner_id = int(path_parts[3])
+
+    deleted = database.delete_winner(winner_id)
+    if not deleted:
+        return (404, {"error": "Winner not found"})
+
+    _cache_invalidate()
+    return (200, {"message": "Gagnant supprime"})
+
+
 def handle_admin_list_giveaways(path_parts, body, headers=None):
     """GET /api/admin/giveaways - list ALL giveaways."""
     giveaways = database.get_all_giveaways()
@@ -574,5 +586,13 @@ def route_request(method, path_parts, body, headers=None, raw_body=None):
         # PUT /api/admin/winners/{id}/shipping
         if method == "PUT" and len(path_parts) == 5 and path_parts[2] == "winners" and path_parts[4] == "shipping":
             return handle_admin_update_shipping(path_parts, body, headers)
+
+        # DELETE /api/admin/winners/{id}
+        if method == "DELETE" and len(path_parts) == 4 and path_parts[2] == "winners":
+            try:
+                int(path_parts[3])
+                return handle_admin_delete_winner(path_parts, body, headers)
+            except (ValueError, IndexError):
+                pass
 
     return (404, {"error": "Not found"})
