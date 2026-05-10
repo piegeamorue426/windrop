@@ -703,11 +703,12 @@
             (list.length > 0 ? list.map(w => {
               var statusClass = w.shipping_status === 'delivered' ? 'shipping-delivered' : (w.shipping_status === 'shipped' ? 'shipping-shipped' : 'shipping-pending');
               var statusText = w.shipping_status === 'delivered' ? 'Livre' : (w.shipping_status === 'shipped' ? 'Expedie' : 'En preparation');
-              return '<div class="winner-card">' +
+              return '<div class="winner-card" onclick="location.hash=\'#/giveaway/' + escapeHtml(w.giveaway_id) + '\'" style="cursor:pointer">' +
                 '<div class="winner-username">' + escapeHtml(w.username || 'Anonyme') + '</div>' +
                 '<div class="winner-product">' + escapeHtml(w.giveaway_title || 'Produit') + '</div>' +
                 '<div class="winner-date">' + escapeHtml(w.drawn_at ? new Date(w.drawn_at).toLocaleDateString('fr-FR') : '') + '</div>' +
                 '<span class="shipping-badge ' + statusClass + '">' + escapeHtml(statusText) + '</span>' +
+                '<div style="margin-top:0.5rem;font-size:0.8rem;color:var(--accent)">&#127922; Voir le tirage</div>' +
               '</div>';
             }).join('') : '<p class="text-center" style="color:var(--text-secondary)">Aucun gagnant pour le moment</p>') +
           '</div>' +
