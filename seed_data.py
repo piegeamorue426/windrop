@@ -85,63 +85,11 @@ def seed():
     for data in giveaways_data:
         database.create_giveaway(data)
 
-    # Create sample users
-    user1 = database.get_or_create_user("GamerDuNord", "gamer.nord@email.fr")
-    user2 = database.get_or_create_user("TechPassion33", "tech33@email.fr")
-    user3 = database.get_or_create_user("StreamerPro_", "streamer@email.fr")
-
-    # Create an ended giveaway with a winner
-    ended_giveaway = database.create_giveaway({
-        "title": "Casque Audio Pro Studio",
-        "description": "Casque audio professionnel pour studio, reduction de bruit active, Bluetooth 5.2.",
-        "image_url": "/static/images/headset.svg",
-        "price": 129.99,
-        "source_url": "https://www.amazon.fr/dp/B09PQR5678",
-        "condition": "Neuf - Scelle",
-        "max_participants": 50,
-        "end_time": (now - timedelta(hours=12)).isoformat(),
-        "status": "active",
-    })
-
-    # Add participants and draw winner for the ended giveaway
-    database.create_ticket(user1["id"], ended_giveaway["id"])
-    database.create_ticket(user2["id"], ended_giveaway["id"])
-    database.create_ticket(user3["id"], ended_giveaway["id"])
-
-    winner = database.draw_winner(ended_giveaway["id"])
-    if winner:
-        database.update_shipping(winner["id"], "shipped", "https://i.imgur.com/proof123.jpg")
-
-    # Create another ended giveaway
-    ended_giveaway2 = database.create_giveaway({
-        "title": "Tapis de Souris XXL RGB",
-        "description": "Tapis de souris gaming XXL 900x400mm, base antiderapante, eclairage RGB peripherique.",
-        "image_url": "/static/images/mousepad.svg",
-        "price": 34.99,
-        "source_url": "https://www.amazon.fr/dp/B09STU9012",
-        "condition": "Neuf - Scelle",
-        "max_participants": 200,
-        "end_time": (now - timedelta(hours=48)).isoformat(),
-        "status": "active",
-    })
-
-    database.create_ticket(user1["id"], ended_giveaway2["id"])
-    database.create_ticket(user3["id"], ended_giveaway2["id"])
-
-    winner2 = database.draw_winner(ended_giveaway2["id"])
-    if winner2:
-        database.update_shipping(winner2["id"], "delivered", "https://i.imgur.com/proof456.jpg")
-
-    # Add some participants to active giveaways
-    database.create_ticket(user1["id"], 1)
-    database.create_ticket(user2["id"], 1)
-    database.create_ticket(user3["id"], 2)
-
     print("Database seeded successfully!")
-    print(f"  - {len(giveaways_data) + 2} giveaways created")
-    print(f"  - 3 users created")
-    print(f"  - Multiple tickets created")
-    print(f"  - 2 winners drawn")
+    print(f"  - {len(giveaways_data)} giveaways created")
+    print(f"  - 0 fake users")
+    print(f"  - 0 fake participants")
+    print(f"  - 0 fake winners")
 
 
 if __name__ == "__main__":
