@@ -237,7 +237,7 @@
       app.innerHTML =
         '<div class="page">' +
           '<section class="hero">' +
-            '<h1><span class="highlight">Participez a des giveaways premium</span><br>a partir de 1 euro</h1>' +
+            '<h1><span class="highlight">Participez a des giveaways premium</span><br>a partir de 1,70€</h1>' +
             '<p>Selection aleatoire et securisee. Livraison gratuite en France.</p>' +
             '<a href="#/giveaways" class="btn btn-primary">Voir les giveaways</a>' +
             '<div class="hero-stats">' +
@@ -299,7 +299,7 @@
       app.innerHTML =
         '<div class="page container" style="padding:2rem 1rem">' +
           '<h1 class="section-title">Giveaways</h1>' +
-          '<p class="section-subtitle">Participez pour seulement 1 euro</p>' +
+          '<p class="section-subtitle">Participez pour seulement 1,70€</p>' +
           '<div class="card-grid">' +
             (list.length > 0 ? list.map(giveawayCard).join('') : '<p class="text-center" style="color:var(--text-secondary)">Aucun giveaway disponible</p>') +
           '</div>' +
@@ -338,14 +338,14 @@
                 '<div class="detail-stat"><div class="detail-stat-value">' + escapeHtml(g.current_participants || 0) + '</div><div class="detail-stat-label">Participants</div></div>' +
                 '<div class="detail-stat"><div class="detail-stat-value" ' + (!isFinished ? 'data-end-time="' + escapeHtml(g.end_time) + '"' : '') + '>' + (isFinished ? 'Termine' : escapeHtml(countdownText)) + '</div><div class="detail-stat-label">Temps restant</div></div>' +
               '</div>' +
-              (!isFinished ? '<button class="btn btn-primary" onclick="window.showParticipateModal(' + g.id + ')">Participer - 1 euro</button>' :
+              (!isFinished ? '<button class="btn btn-primary" onclick="window.showParticipateModal(' + g.id + ')">Participer - 1,70€</button>' :
                 '<button class="btn btn-secondary" disabled>Giveaway termine</button>') +
             '</div>' +
           '</div>' +
           '<div class="detail-rules">' +
             '<h3>Regles du giveaway</h3>' +
             '<ul>' +
-              '<li>Participation unique pour 1 euro</li>' +
+              '<li>Participation unique pour 1,70€</li>' +
               '<li>Une seule participation par personne et par giveaway</li>' +
               '<li>Le gagnant est selectionne de maniere aleatoire et securisee</li>' +
               '<li>Le gagnant est contacte par email et annonce sur la page Gagnants</li>' +
@@ -443,7 +443,7 @@
         '<div class="form-group"><label>Email</label><input type="email" id="modal-email" placeholder="votre@email.com"></div>' +
         '<div id="modal-error" class="form-error" style="display:none"></div>' +
         '<div id="modal-success" style="display:none"></div>' +
-        '<p style="font-size:0.85rem;color:var(--text-secondary);margin-top:0.5rem">Le paiement de 1 euro sera active prochainement.</p>' +
+        '<p style="font-size:0.85rem;color:var(--text-secondary);margin-top:0.5rem">Le paiement de 1,70€ sera active prochainement.</p>' +
         '<div class="modal-actions">' +
           '<button class="btn btn-secondary" id="modal-cancel">Annuler</button>' +
           '<button class="btn btn-primary" id="modal-confirm">Participer (gratuit pendant le lancement)</button>' +
@@ -744,7 +744,7 @@
     const app = getApp();
     const steps = [
       { num: '1', title: 'Choisir un giveaway', desc: 'Parcourez nos giveaways et choisissez le produit qui vous interesse.' },
-      { num: '2', title: 'Valider sa participation', desc: 'Une participation coute 1 euro. Paiement securise. Vous ne pouvez participer qu\'une seule fois par giveaway.' },
+      { num: '2', title: 'Valider sa participation', desc: 'Une participation coute 1,70€. Paiement securise. Vous ne pouvez participer qu\'une seule fois par giveaway.' },
       { num: '3', title: 'Attendre la selection', desc: 'Un compteur indique le temps restant avant la selection du gagnant.' },
       { num: '4', title: 'Selection du gagnant', desc: 'Le gagnant est selectionne de maniere aleatoire et securisee.' },
       { num: '5', title: 'Livraison gratuite', desc: 'Le gagnant recoit son produit livre gratuitement en France.' }
@@ -770,7 +770,7 @@
     const app = getApp();
     const questions = [
       { q: 'Comment fonctionne la selection ?', a: 'Le gagnant est selectionne par un algorithme aleatoire securise. Chaque participant a exactement la meme chance de gagner, quel que soit le moment de sa participation.' },
-      { q: 'Pourquoi seulement 1 euro ?', a: 'Nous voulons que tout le monde puisse tenter sa chance. Le prix de 1 euro couvre les frais de fonctionnement et permet d\'acheter les produits mis en jeu.' },
+      { q: 'Pourquoi seulement 1,70€ ?', a: 'Nous voulons que tout le monde puisse tenter sa chance. Le prix de 1,70€ couvre les frais de fonctionnement et permet d\'acheter les produits mis en jeu.' },
       { q: 'Comment sont choisis les gagnants ?', a: 'Les gagnants sont selectionnes par un algorithme cryptographiquement securise. Chaque participant a exactement la meme chance de gagner.' },
       { q: 'C\'est securise ?', a: 'Nous utilisons des protocoles de securite standards pour proteger vos donnees. Aucune information bancaire n\'est stockee sur nos serveurs.' },
       { q: 'Combien de chances ai-je de gagner ?', a: 'Chaque participation donne une chance egale. Plus le nombre de participants est faible, plus vos chances sont elevees.' },
@@ -855,7 +855,7 @@
         '<h1 class="section-title">Mentions legales</h1>' +
         '<h2>Conditions generales d\'utilisation</h2>' +
         '<p>En utilisant la plateforme Windrop, vous acceptez les presentes conditions generales d\'utilisation. La participation aux giveaways est ouverte a toute personne majeure residant en France metropolitaine.</p>' +
-        '<p>Chaque participation est facturee 1 euro. Ce montant est non remboursable. Le tirage au sort est effectue de maniere aleatoire a la date de fin indiquee sur chaque giveaway.</p>' +
+        '<p>Chaque participation est facturee 1,70€. Ce montant est non remboursable. Le tirage au sort est effectue de maniere aleatoire a la date de fin indiquee sur chaque giveaway.</p>' +
         '<p>Le gagnant est notifie par email a l\'adresse fournie lors de l\'inscription. Il dispose de 7 jours pour confirmer ses coordonnees de livraison.</p>' +
         '<h2>Politique de confidentialite</h2>' +
         '<p>Nous collectons uniquement les informations necessaires au fonctionnement du service : nom d\'utilisateur et adresse email. Ces donnees ne sont jamais partagees avec des tiers.</p>' +
