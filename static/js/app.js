@@ -492,45 +492,64 @@
     };
   };
 
-  // Winner Slot Machine Animation
+  // Winner Slot Machine Animation - Impressive version with dramatic reveal
   window.showWinnerAnimation = async function(giveawayId, winnerUsername) {
     console.log('showWinnerAnimation called with giveawayId:', giveawayId, 'winnerUsername:', winnerUsername);
+
+    // Placeholder names to fake variety even with 1 participant
+    var fakePlaceholders = [
+      '???', '...', '###', '***', '---', 'xxx',
+      '?!?', '##!', '...?', '!?!', '**?', '#?#',
+      '>>>','<<<', '+++', '&&&', '~*~', '^_^'
+    ];
 
     // Create modal overlay
     var overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.innerHTML =
-      '<div class="modal" style="max-width:340px;text-align:center">' +
-        '<h2 style="margin-bottom:1rem">Tirage au sort</h2>' +
+      '<div class="modal" style="max-width:380px;text-align:center;position:relative;overflow:hidden">' +
+        '<h2 style="margin-bottom:1rem;font-size:1.3rem;letter-spacing:1px">Tirage au sort</h2>' +
         '<div class="slot-container">' +
           '<span class="slot-pointer">&#9654;</span>' +
-          '<div class="slot-window"><div class="slot-reel"></div></div>' +
+          '<div class="slot-window">' +
+            '<div class="slot-highlight-bar"></div>' +
+            '<div class="slot-reel"></div>' +
+          '</div>' +
           '<span class="slot-pointer">&#9664;</span>' +
         '</div>' +
-        '<div class="slot-result" style="display:none;margin-top:1.5rem">' +
-          '<div style="font-size:1.5rem;font-weight:900;color:var(--accent-red);letter-spacing:3px;text-shadow:0 0 20px rgba(255,30,30,0.6)">GAGNANT</div>' +
-          '<div class="slot-winner-name" style="font-size:1.5rem;font-weight:900;margin-top:0.5rem"></div>' +
-          '<div style="margin-top:0.5rem;color:var(--text-secondary)">Felicitations !</div>' +
+        '<div class="slot-result" style="margin-top:1.5rem">' +
+          '<div class="slot-winner-label">GAGNANT</div>' +
+          '<div class="slot-winner-name-text"></div>' +
+          '<div style="margin-top:0.75rem;color:var(--text-secondary);font-size:0.95rem">Felicitations !</div>' +
         '</div>' +
-        '<p style="margin-top:1.5rem;font-size:0.8rem;color:var(--text-secondary)">Cliquez pour fermer</p>' +
+        '<p style="margin-top:1.5rem;font-size:0.8rem;color:var(--text-secondary)" class="slot-close-hint" style="display:none">Cliquez pour fermer</p>' +
       '</div>';
 
     document.body.appendChild(overlay);
 
-    // Close on click
+    var animationDone = false;
+
+    // Close on click only after animation is done
     overlay.addEventListener('click', function() {
-      overlay.remove();
+      if (animationDone) overlay.remove();
     });
-    // Prevent modal inner clicks from closing immediately during animation
     overlay.querySelector('.modal').addEventListener('click', function(e) {
       e.stopPropagation();
+      if (animationDone) overlay.remove();
     });
 
     var reel = overlay.querySelector('.slot-reel');
     var resultEl = overlay.querySelector('.slot-result');
-    var winnerNameEl = overlay.querySelector('.slot-winner-name');
+    var winnerNameEl = overlay.querySelector('.slot-winner-name-text');
+    var slotWindow = overlay.querySelector('.slot-window');
+    var highlightBar = overlay.querySelector('.slot-highlight-bar');
+    var closeHint = overlay.querySelector('.slot-close-hint');
 
-    // Fetch participants (skip if giveawayId is not a valid number)
+    // Hide result and close hint initially
+    resultEl.style.display = 'none';
+    closeHint.style.display = 'none';
+
+    // Fetch participants
     try {
       var names = [];
       if (giveawayId && !isNaN(Number(giveawayId))) {
@@ -546,14 +565,40 @@
       }
       if (!hasWinner) names.push(winnerUsername);
 
-      // Build reel items: repeat names multiple times, end on winner
-      var reelNames = [];
-      var totalItems = Math.max(30, names.length * 5);
-      for (var j = 0; j < totalItems; j++) {
-        reelNames.push(names[j % names.length]);
+      // Mix in fake placeholders if we have few unique names to create visual variety
+      var displayNames = names.slice();
+      if (displayNames.length < 8) {
+        var needed = 8 - displayNames.length;
+        for (var f = 0; f < needed; f++) {
+          displayNames.push(fakePlaceholders[f % fakePlaceholders.length]);
+        }
       }
-      // Ensure last item is the winner
-      reelNames.push(winnerUsername);
+
+      // Shuffle the display names for randomness
+      for (var s = displayNames.length - 1; s > 0; s--) {
+        var r = Math.floor(Math.random() * (s + 1));
+        var tmp = displayNames[s];
+        displayNames[s] = displayNames[r];
+        displayNames[r] = tmp;
+      }
+
+      // Build reel: many items cycling through, winner lands in CENTER (item index 1 of visible 3)
+      // We need: [padding item] [WINNER in center] [padding item below]
+      // Total reel items: enough for ~5.5 seconds of scrolling
+      var totalItems = 80;
+      var reelNames = [];
+      for (var j = 0; j < totalItems; j++) {
+        reelNames.push(displayNames[j % displayNames.length]);
+      }
+      // The winner must end up in the CENTER of the 3 visible slots
+      // Visible window is 150px = 3 items of 50px each (indices 0,1,2 from top)
+      // Center is index 1. We want the reel to stop so the winner is at position 1 from top.
+      // That means the reel translateY stops at -(lastWinnerIndex - 1) * 50
+      // Place winner at position totalItems - 2 (so winner is second-to-last, center of last 3)
+      reelNames[totalItems - 2] = winnerUsername;
+      // Ensure the items adjacent to winner are not the winner (for drama)
+      reelNames[totalItems - 3] = displayNames[0] === winnerUsername ? displayNames[1] || fakePlaceholders[0] : displayNames[0];
+      reelNames[totalItems - 1] = displayNames[2] === winnerUsername ? displayNames[3] || fakePlaceholders[2] : displayNames[2];
 
       // Create DOM items
       reel.innerHTML = '';
@@ -564,49 +609,101 @@
         reel.appendChild(item);
       }
 
-      // Animate: scroll the reel using translateY
+      // Animation parameters
       var itemHeight = 50;
-      var totalDistance = (reelNames.length - 1) * itemHeight;
-      var duration = 4000;
+      // Stop so that winner (index totalItems-2) is in center (offset 1 item from top)
+      var winnerIndex = totalItems - 2;
+      var targetOffset = (winnerIndex - 1) * itemHeight;
+      var duration = 5500; // 5.5 seconds
       var startTime = null;
+      var lastCenterIndex = -1;
 
-      function easeOutCubic(t) {
-        return 1 - Math.pow(1 - t, 3);
+      // Custom easing: fast start, dramatic slowdown at the end
+      function slotEasing(t) {
+        // Combine: fast linear portion then very aggressive ease-out
+        if (t < 0.4) {
+          // First 40% of time covers 70% of distance (fast)
+          return (t / 0.4) * 0.7;
+        } else {
+          // Last 60% of time covers 30% of distance (dramatic slowdown)
+          var localT = (t - 0.4) / 0.6;
+          // Quintic ease-out for dramatic deceleration
+          var eased = 1 - Math.pow(1 - localT, 5);
+          return 0.7 + eased * 0.3;
+        }
       }
+
+      // Apply blur during fast phase
+      reel.classList.add('slot-blur');
 
       function animateReel(timestamp) {
         if (!startTime) startTime = timestamp;
         var elapsed = timestamp - startTime;
         var progress = Math.min(elapsed / duration, 1);
-        var easedProgress = easeOutCubic(progress);
-        var currentY = easedProgress * totalDistance;
+        var easedProgress = slotEasing(progress);
+        var currentY = easedProgress * targetOffset;
         reel.style.transform = 'translateY(-' + currentY + 'px)';
+
+        // Tick effect: detect which item is in center and highlight it
+        var centerItemIndex = Math.round(currentY / itemHeight) + 1;
+        if (centerItemIndex !== lastCenterIndex && centerItemIndex >= 0 && centerItemIndex < reelNames.length) {
+          lastCenterIndex = centerItemIndex;
+          // Flash the highlight bar
+          highlightBar.classList.add('slot-ticking');
+          setTimeout(function() {
+            highlightBar.classList.remove('slot-ticking');
+          }, 80);
+        }
+
+        // Remove blur when slowing down (after 60% progress)
+        if (progress > 0.6 && reel.classList.contains('slot-blur')) {
+          reel.classList.remove('slot-blur');
+        }
 
         if (progress < 1) {
           requestAnimationFrame(animateReel);
         } else {
-          // Animation done, highlight winner
-          var lastItem = reel.lastElementChild;
-          if (lastItem) lastItem.classList.add('slot-winner');
-          resultEl.style.display = 'block';
-          winnerNameEl.textContent = winnerUsername;
-          // Allow closing from anywhere now
-          overlay.querySelector('.modal').addEventListener('click', function() {
-            overlay.remove();
-          });
+          // Animation complete - reveal winner
+          reel.classList.remove('slot-blur');
+
+          // Highlight the winner item in the reel
+          var reelItems = reel.querySelectorAll('.slot-item');
+          if (reelItems[winnerIndex]) {
+            reelItems[winnerIndex].classList.add('slot-winner');
+          }
+
+          // Glow explosion on the slot window
+          slotWindow.classList.add('slot-reveal');
+
+          // Show result with animation
+          setTimeout(function() {
+            resultEl.style.display = 'block';
+            // Trigger CSS animation by adding class after display
+            requestAnimationFrame(function() {
+              resultEl.classList.add('slot-result-visible');
+            });
+            winnerNameEl.textContent = winnerUsername;
+
+            // Show close hint
+            closeHint.style.display = 'block';
+            animationDone = true;
+          }, 400);
         }
       }
 
-      // Start after a brief delay
+      // Start after a brief suspense delay
       setTimeout(function() {
         requestAnimationFrame(animateReel);
-      }, 300);
+      }, 500);
 
     } catch (err) {
       // If fetch fails, just show the winner directly
-      reel.innerHTML = '<div class="slot-item slot-winner">' + escapeHtml(winnerUsername) + '</div>';
+      reel.innerHTML = '<div class="slot-item slot-winner" style="margin-top:50px">' + escapeHtml(winnerUsername) + '</div>';
       resultEl.style.display = 'block';
+      resultEl.classList.add('slot-result-visible');
       winnerNameEl.textContent = winnerUsername;
+      closeHint.style.display = 'block';
+      animationDone = true;
     }
   };
 
