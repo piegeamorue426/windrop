@@ -454,6 +454,12 @@ def handle_admin_get_participants(path_parts, body, headers=None):
     return (200, participants)
 
 
+def handle_admin_all_participants(path_parts, body, headers=None):
+    """GET /api/admin/all-participants - list all participants across all giveaways."""
+    participants = database.get_all_participants()
+    return (200, participants)
+
+
 def route_request(method, path_parts, body, headers=None, raw_body=None):
     """Route a request to the appropriate handler.
 
@@ -517,6 +523,10 @@ def route_request(method, path_parts, body, headers=None, raw_body=None):
         # GET /api/admin/messages
         if method == "GET" and path_str == "api/admin/messages":
             return handle_admin_get_messages(path_parts, body, headers)
+
+        # GET /api/admin/all-participants
+        if method == "GET" and path_str == "api/admin/all-participants":
+            return handle_admin_all_participants(path_parts, body, headers)
 
         # POST /api/admin/giveaways
         if method == "POST" and path_str == "api/admin/giveaways":

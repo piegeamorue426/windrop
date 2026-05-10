@@ -347,15 +347,35 @@ def update_shipping(winner_id, status, proof_url):
 
 
 def get_giveaway_participants(giveaway_id):
-    """Get all participants for a giveaway."""
+    """Get all participants for a giveaway with full anti-fraud info."""
     conn = get_connection()
     cursor = conn.execute("""
-        SELECT t.*, u.username, u.email
+        SELECT t.id, t.created_at, u.username, u.email,
+               pf.ip_address, pf.fingerprint
         FROM tickets t
         JOIN users u ON t.user_id = u.id
+        LEFT JOIN participation_fingerprints pf ON pf.giveaway_id = t.giveaway_id AND pf.user_id = t.user_id
         WHERE t.giveaway_id = ?
         ORDER BY t.created_at DESC
     """, (giveaway_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def get_all_participants():
+    """Get all participants across all giveaways with full info."""
+    conn = get_connection()
+    cursor = conn.execute("""
+        SELECT t.id, t.created_at, u.username, u.email,
+               g.title as giveaway_title,
+               pf.ip_address, pf.fingerprint
+        FROM tickets t
+        JOIN users u ON t.user_id = u.id
+        JOIN giveaways g ON t.giveaway_id = g.id
+        LEFT JOIN participation_fingerprints pf ON pf.giveaway_id = t.giveaway_id AND pf.user_id = t.user_id
+        ORDER BY t.created_at DESC
+    """)
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]

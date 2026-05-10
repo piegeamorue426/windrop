@@ -42,6 +42,7 @@
           '<button class="admin-tab' + (currentAdminTab === 'create' ? ' active' : '') + '" data-tab="create">Creer</button>' +
           '<button class="admin-tab' + (currentAdminTab === 'winners' ? ' active' : '') + '" data-tab="winners">Gagnants</button>' +
           '<button class="admin-tab' + (currentAdminTab === 'messages' ? ' active' : '') + '" data-tab="messages">Messages</button>' +
+          '<button class="admin-tab' + (currentAdminTab === 'infos' ? ' active' : '') + '" data-tab="infos">Infos</button>' +
         '</div>' +
         '<div id="admin-content"></div>' +
       '</div>';
@@ -64,6 +65,7 @@
       case 'create': renderAdminCreate(); break;
       case 'winners': renderAdminWinners(); break;
       case 'messages': renderAdminMessages(); break;
+      case 'infos': renderAdminInfos(); break;
     }
   }
 
@@ -265,6 +267,88 @@
     }
   }
 
+  async function renderAdminInfos() {
+    const container = document.getElementById('admin-content');
+    container.innerHTML = '<div class="loading">Chargement...</div>';
+
+    try {
+      const participants = await adminApi('/api/admin/all-participants');
+      const list = Array.isArray(participants) ? participants : [];
+
+      // Compute stats
+      var ipSet = {};
+      var emailSet = {};
+      var fpSet = {};
+      var ipToUsers = {};
+
+      list.forEach(function(p) {
+        var ip = p.ip_address || '';
+        var email = p.email || '';
+        var fp = p.fingerprint || '';
+        var username = p.username || '';
+
+        if (ip) {
+          ipSet[ip] = true;
+          if (!ipToUsers[ip]) ipToUsers[ip] = {};
+          if (username) ipToUsers[ip][username] = true;
+        }
+        if (email) emailSet[email.toLowerCase()] = true;
+        if (fp) fpSet[fp] = true;
+      });
+
+      var uniqueIps = Object.keys(ipSet).length;
+      var uniqueEmails = Object.keys(emailSet).length;
+      var uniqueFingerprints = Object.keys(fpSet).length;
+
+      // Find suspicious IPs (same IP with multiple usernames)
+      var suspiciousIps = {};
+      Object.keys(ipToUsers).forEach(function(ip) {
+        if (Object.keys(ipToUsers[ip]).length > 1) {
+          suspiciousIps[ip] = true;
+        }
+      });
+
+      // Build summary
+      var summary = '<div style="margin:1rem 0;padding:0.75rem 1rem;background:var(--bg-card);border:1px solid var(--border-card);border-radius:8px;display:flex;flex-wrap:wrap;gap:1.5rem">' +
+        '<span><strong>' + esc(list.length) + '</strong> participations</span>' +
+        '<span><strong>' + esc(uniqueIps) + '</strong> IPs uniques</span>' +
+        '<span><strong>' + esc(uniqueEmails) + '</strong> emails uniques</span>' +
+        '<span><strong>' + esc(uniqueFingerprints) + '</strong> appareils uniques</span>' +
+        (Object.keys(suspiciousIps).length > 0 ? '<span style="color:#ff4444"><strong>' + esc(Object.keys(suspiciousIps).length) + '</strong> IPs suspectes</span>' : '') +
+      '</div>';
+
+      container.innerHTML =
+        '<h3 style="margin:1rem 0">Toutes les participations</h3>' +
+        summary +
+        '<table class="admin-table">' +
+          '<thead><tr><th>#</th><th>Pseudo</th><th>Email</th><th>IP</th><th>Appareil</th><th>Giveaway</th><th>Date</th></tr></thead>' +
+          '<tbody>' +
+            list.map(function(p, idx) {
+              var ip = p.ip_address || '';
+              var isSuspicious = ip && suspiciousIps[ip];
+              var ipStyle = isSuspicious ? ' style="color:#ff4444;font-weight:bold"' : '';
+              var usernameStyle = isSuspicious ? ' style="color:#ff4444"' : '';
+              var fp = p.fingerprint || '';
+              var fpDisplay = fp ? (fp.length > 10 ? fp.substring(0, 10) + '...' : fp) : 'N/A';
+              var dateStr = p.created_at ? new Date(p.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A';
+              return '<tr>' +
+                '<td data-label="#">' + (idx + 1) + '</td>' +
+                '<td data-label="Pseudo"' + usernameStyle + '>' + esc(p.username || 'N/A') + '</td>' +
+                '<td data-label="Email">' + esc(p.email || 'N/A') + '</td>' +
+                '<td data-label="IP"' + ipStyle + '>' + esc(ip || 'N/A') + '</td>' +
+                '<td data-label="Appareil" title="' + esc(fp) + '">' + esc(fpDisplay) + '</td>' +
+                '<td data-label="Giveaway">' + esc(p.giveaway_title || 'N/A') + '</td>' +
+                '<td data-label="Date">' + esc(dateStr) + '</td>' +
+              '</tr>';
+            }).join('') +
+          '</tbody>' +
+        '</table>' +
+        (list.length === 0 ? '<p class="text-center" style="color:var(--text-secondary)">Aucune participation</p>' : '');
+    } catch (err) {
+      container.innerHTML = '<div class="error-msg">Erreur: ' + esc(err.message) + '</div>';
+    }
+  }
+
   // Admin Actions
   window.adminDraw = async function(giveawayId) {
     if (!confirm('Effectuer le tirage au sort pour ce giveaway ?')) return;
@@ -417,17 +501,43 @@
     try {
       var participants = await adminApi('/api/admin/giveaways/' + giveawayId + '/participants');
       var list = Array.isArray(participants) ? participants : [];
+
+      // Count unique IPs
+      var ipCounts = {};
+      list.forEach(function(p) {
+        var ip = p.ip_address || '';
+        if (ip) {
+          ipCounts[ip] = (ipCounts[ip] || 0) + 1;
+        }
+      });
+      var uniqueIps = Object.keys(ipCounts).length;
+
+      // Build summary
+      var summary = '<div style="margin:1rem 0;padding:0.75rem 1rem;background:var(--bg-card);border:1px solid var(--border-card);border-radius:8px;display:inline-block">' +
+        '<strong>' + esc(list.length) + ' participants</strong> | <strong>' + esc(uniqueIps) + ' IPs uniques</strong>' +
+      '</div>';
+
       container.innerHTML =
         '<button class="btn btn-secondary btn-sm mb-2" onclick="window.renderAdminPage();">Retour</button>' +
-        '<h3 style="margin:1rem 0">Participants du giveaway #' + esc(giveawayId) + ' (' + esc(list.length) + ')</h3>' +
+        '<h3 style="margin:1rem 0">Participants du giveaway #' + esc(giveawayId) + '</h3>' +
+        summary +
         '<table class="admin-table">' +
-          '<thead><tr><th>Username</th><th>Email</th><th>Date</th></tr></thead>' +
+          '<thead><tr><th>#</th><th>Pseudo</th><th>Email</th><th>IP</th><th>Appareil</th><th>Date</th></tr></thead>' +
           '<tbody>' +
-            list.map(function(p) {
+            list.map(function(p, idx) {
+              var ip = p.ip_address || '';
+              var isDuplicateIp = ip && ipCounts[ip] > 1;
+              var ipStyle = isDuplicateIp ? ' style="color:#ff4444;font-weight:bold"' : '';
+              var fp = p.fingerprint || '';
+              var fpDisplay = fp ? (fp.length > 10 ? fp.substring(0, 10) + '...' : fp) : 'N/A';
+              var dateStr = p.created_at ? new Date(p.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A';
               return '<tr>' +
-                '<td data-label="Username">' + esc(p.username || 'N/A') + '</td>' +
+                '<td data-label="#">' + (idx + 1) + '</td>' +
+                '<td data-label="Pseudo">' + esc(p.username || 'N/A') + '</td>' +
                 '<td data-label="Email">' + esc(p.email || 'N/A') + '</td>' +
-                '<td data-label="Date">' + esc(p.created_at || '') + '</td>' +
+                '<td data-label="IP"' + ipStyle + '>' + esc(ip || 'N/A') + '</td>' +
+                '<td data-label="Appareil" title="' + esc(fp) + '">' + esc(fpDisplay) + '</td>' +
+                '<td data-label="Date">' + esc(dateStr) + '</td>' +
               '</tr>';
             }).join('') +
           '</tbody>' +
