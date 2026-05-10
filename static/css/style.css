@@ -1133,3 +1133,34 @@ input, textarea, select { font-family: inherit; }
   70% { transform: scale(1.05); }
   100% { transform: scale(1); opacity: 1; }
 }
+
+/* Admin quick time buttons */
+.btn-quick-time {
+  padding: 0.4rem 0.8rem;
+  background: rgba(255, 30, 30, 0.15);
+  border: 1px solid var(--accent-red);
+  color: var(--accent-red);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+.btn-quick-time:hover {
+  background: rgba(255, 30, 30, 0.3);
+}
+
+/* Admin draw button prominent */
+.btn-draw {
+  background: var(--accent-red) !important;
+  color: white !important;
+  font-weight: 700 !important;
+  font-size: 0.9rem !important;
+  padding: 0.6rem 1.2rem !important;
+  border-radius: 6px !important;
+  animation: pulse-draw 2s infinite;
+}
+@keyframes pulse-draw {
+  0%, 100% { box-shadow: 0 0 5px rgba(255,30,30,0.5); }
+  50% { box-shadow: 0 0 15px rgba(255,30,30,0.8); }
+}

@@ -92,7 +92,7 @@
                 '<td data-label="Participants">' + esc(g.current_participants || 0) + '</td>' +
                 '<td data-label="Statut"><span class="status-badge status-' + esc(g.status) + '">' + esc(g.status) + '</span></td>' +
                 '<td data-label="Actions">' +
-                  (g.status === 'active' ? '<button class="btn btn-sm btn-primary" onclick="window.adminDraw(' + g.id + ')">Tirage</button> ' : '') +
+                  (g.status === 'active' ? '<button class="btn btn-draw" onclick="window.adminDraw(' + g.id + ')">LANCER LE TIRAGE</button> ' : '') +
                   (g.status === 'active' ? '<button class="btn btn-sm btn-warning" onclick="window.adminCloseGiveaway(' + g.id + ')">Fermer</button> ' : '') +
                   '<button class="btn btn-sm btn-secondary" onclick="window.adminEditGiveaway(' + g.id + ')">Editer</button> ' +
                   '<button class="btn btn-sm btn-secondary" onclick="window.adminViewParticipants(' + g.id + ')">Voir</button> ' +
@@ -128,10 +128,50 @@
         '<div class="form-group"><label>Etat du produit</label>' +
           '<select id="adm-condition"><option value="neuf">Neuf</option><option value="comme neuf">Comme neuf</option><option value="bon etat">Bon etat</option><option value="correct">Correct</option></select>' +
         '</div>' +
-        '<div class="form-group"><label>Date de fin</label><input type="datetime-local" id="adm-end"></div>' +
+        '<div class="form-group"><label>Date de fin du giveaway</label>' +
+          '<input type="datetime-local" id="adm-end" style="margin-bottom:0.5rem">' +
+          '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem">' +
+            '<button type="button" class="btn-quick-time" data-hours="1">+1h</button>' +
+            '<button type="button" class="btn-quick-time" data-hours="6">+6h</button>' +
+            '<button type="button" class="btn-quick-time" data-hours="24">+24h</button>' +
+            '<button type="button" class="btn-quick-time" data-hours="48">+48h</button>' +
+            '<button type="button" class="btn-quick-time" data-hours="72">+3 jours</button>' +
+            '<button type="button" class="btn-quick-time" data-hours="168">+7 jours</button>' +
+          '</div>' +
+          '<div id="adm-end-preview" style="margin-top:0.5rem;font-size:0.85rem;color:var(--accent)"></div>' +
+        '</div>' +
+        '<div class="form-group"><label>Max participants (optionnel)</label><input type="number" id="adm-max-participants" placeholder="ex: 100 (laisser vide = illimite)" min="2"></div>' +
         '<div id="admin-create-feedback"></div>' +
         '<button type="submit" class="btn btn-primary">Creer le giveaway</button>' +
       '</form>';
+
+    // Quick time buttons
+    document.querySelectorAll('.btn-quick-time').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var hours = parseInt(this.getAttribute('data-hours'));
+        var d = new Date();
+        d.setHours(d.getHours() + hours);
+        // Format for datetime-local input (YYYY-MM-DDTHH:MM)
+        var year = d.getFullYear();
+        var month = String(d.getMonth() + 1).padStart(2, '0');
+        var day = String(d.getDate()).padStart(2, '0');
+        var h = String(d.getHours()).padStart(2, '0');
+        var m = String(d.getMinutes()).padStart(2, '0');
+        document.getElementById('adm-end').value = year + '-' + month + '-' + day + 'T' + h + ':' + m;
+        updateEndPreview();
+      });
+    });
+
+    // End date preview
+    document.getElementById('adm-end').addEventListener('change', updateEndPreview);
+    function updateEndPreview() {
+      var val = document.getElementById('adm-end').value;
+      var preview = document.getElementById('adm-end-preview');
+      if (!val) { preview.textContent = ''; return; }
+      var d = new Date(val);
+      var options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+      preview.textContent = 'Termine le: ' + d.toLocaleDateString('fr-FR', options);
+    }
 
     // Handle file preview
     document.getElementById('adm-image-file').addEventListener('change', function() {
@@ -167,7 +207,8 @@
         image_url: imageUrl,
         source_url: document.getElementById('adm-source').value.trim(),
         condition: document.getElementById('adm-condition').value,
-        end_time: document.getElementById('adm-end').value || null
+        end_time: document.getElementById('adm-end').value || null,
+        max_participants: parseInt(document.getElementById('adm-max-participants').value) || null
       };
 
       if (!data.title) {
