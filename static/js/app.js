@@ -494,6 +494,8 @@
 
   // Winner Slot Machine Animation
   window.showWinnerAnimation = async function(giveawayId, winnerUsername) {
+    console.log('showWinnerAnimation called with giveawayId:', giveawayId, 'winnerUsername:', winnerUsername);
+
     // Create modal overlay
     var overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
@@ -528,10 +530,13 @@
     var resultEl = overlay.querySelector('.slot-result');
     var winnerNameEl = overlay.querySelector('.slot-winner-name');
 
-    // Fetch participants
+    // Fetch participants (skip if giveawayId is not a valid number)
     try {
-      var participants = await api('/api/giveaways/' + giveawayId + '/participants');
-      var names = participants.map(function(p) { return p.username; });
+      var names = [];
+      if (giveawayId && !isNaN(Number(giveawayId))) {
+        var participants = await api('/api/giveaways/' + giveawayId + '/participants');
+        names = participants.map(function(p) { return p.username; });
+      }
       if (names.length === 0) names = [winnerUsername];
 
       // Ensure winner is in the list
