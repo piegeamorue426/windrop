@@ -284,10 +284,18 @@ def handle_participate(path_parts, body, headers=None):
         if multi_count >= 5:
             return (400, {"error": "Activite suspecte detectee sur cet appareil."})
 
-    # Check for duplicate participation by device/IP
-    if ip_address or fingerprint:
-        if database.check_duplicate_participation(giveaway_id, ip_address, fingerprint):
-            return (400, {"error": "Vous avez deja participe a ce giveaway depuis cet appareil"})
+    # Anti-fraud: ALWAYS check for duplicate participation
+    # 1. Same email already participated in this giveaway
+    if database.check_email_participated(giveaway_id, email):
+        return (400, {"error": "Cette adresse email a deja participe a ce giveaway"})
+
+    # 2. Same IP (if available)
+    if ip_address and database.check_ip_participated(giveaway_id, ip_address):
+        return (400, {"error": "Une participation a deja ete enregistree depuis cette connexion"})
+
+    # 3. Same fingerprint (if available)
+    if fingerprint and database.check_fingerprint_participated(giveaway_id, fingerprint):
+        return (400, {"error": "Une participation a deja ete enregistree depuis cet appareil"})
 
     user = database.get_or_create_user(username, email)
 
@@ -296,9 +304,8 @@ def handle_participate(path_parts, body, headers=None):
     except ValueError:
         return (400, {"error": "Vous participez deja a ce giveaway"})
 
-    # Record fingerprint for anti-fraud
-    if ip_address or fingerprint:
-        database.record_participation_fingerprint(giveaway_id, user["id"], ip_address, fingerprint)
+    # Record fingerprint for anti-fraud (always record, include email)
+    database.record_participation_fingerprint(giveaway_id, user["id"], ip_address, fingerprint, email)
 
     # Invalidate cache on participation
     _cache_invalidate()

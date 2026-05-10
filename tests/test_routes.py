@@ -76,10 +76,10 @@ class TestRoutes(unittest.TestCase):
         status, data = routes.route_request("POST", path_parts, body)
         self.assertEqual(status, 201)
 
-        # Second participation with same user should fail
+        # Second participation with same user should fail (email duplicate check)
         status, data = routes.route_request("POST", path_parts, body)
         self.assertEqual(status, 400)
-        self.assertIn("Vous participez deja", data["error"])
+        self.assertIn("deja participe", data["error"])
 
     def test_admin_endpoint_without_token_returns_401(self):
         """Test that admin endpoints without auth token return 401."""
