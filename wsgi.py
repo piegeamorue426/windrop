@@ -30,12 +30,13 @@ MIME_TYPES = {
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
     ".gif": "image/gif",
+    ".webp": "image/webp",
     ".ico": "image/x-icon",
     ".woff": "font/woff",
     ".woff2": "font/woff2",
 }
 
-BINARY_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".ico", ".woff", ".woff2"}
+BINARY_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".woff", ".woff2"}
 
 # Initialize database on module load
 database.init_db()
@@ -83,13 +84,19 @@ def parse_request_body(environ):
     """Read and parse JSON request body from WSGI environ."""
     content_length = int(environ.get("CONTENT_LENGTH") or 0)
     if content_length == 0:
-        return None
+        return None, None
 
     try:
         body_bytes = environ["wsgi.input"].read(content_length)
-        return json.loads(body_bytes.decode("utf-8"))
+        content_type = environ.get("CONTENT_TYPE", "")
+
+        # If multipart, return raw bytes (don't parse as JSON)
+        if "multipart/form-data" in content_type:
+            return None, body_bytes
+
+        return json.loads(body_bytes.decode("utf-8")), body_bytes
     except (json.JSONDecodeError, UnicodeDecodeError, KeyError):
-        return None
+        return None, None
 
 
 def get_headers_from_environ(environ):
@@ -126,13 +133,18 @@ def application(environ, start_response):
     # API routes
     if parts and parts[0] == "api":
         body = None
+        raw_body = None
         if method in ("POST", "PUT"):
-            body = parse_request_body(environ)
+            body, raw_body = parse_request_body(environ)
 
         headers = get_headers_from_environ(environ)
 
+        # Add REMOTE_ADDR as X-Real-Ip if not already present
+        if "X-Real-Ip" not in headers:
+            headers["X-Real-Ip"] = environ.get("REMOTE_ADDR", "")
+
         try:
-            status_code, response_data = routes.route_request(method, parts, body, headers)
+            status_code, response_data = routes.route_request(method, parts, body, headers, raw_body=raw_body)
         except Exception as e:
             status_code = 500
             response_data = {"error": "Internal server error"}

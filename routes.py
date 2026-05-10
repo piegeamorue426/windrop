@@ -2,10 +2,16 @@
 
 import json
 import os
+import secrets
 from datetime import datetime, timezone
+from pathlib import Path
 import database
 
 ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "windrop-admin-2024")
+
+UPLOAD_DIR = Path(__file__).parent / "static" / "uploads"
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5MB
 
 
 def check_admin_auth(headers):
@@ -35,6 +41,107 @@ def auto_expire_giveaways():
                     database.update_giveaway(g["id"], {"status": "expired"})
             except (ValueError, TypeError):
                 pass
+
+
+def parse_multipart(body_bytes, content_type):
+    """Parse multipart/form-data body and extract file data.
+
+    Returns dict with 'filename' and 'content' keys, or None on failure.
+    """
+    # Extract boundary from content-type header
+    boundary = None
+    for part in content_type.split(";"):
+        part = part.strip()
+        if part.startswith("boundary="):
+            boundary = part[len("boundary="):]
+            # Remove surrounding quotes if present
+            if boundary.startswith('"') and boundary.endswith('"'):
+                boundary = boundary[1:-1]
+            break
+
+    if not boundary:
+        return None
+
+    boundary_bytes = ("--" + boundary).encode("utf-8")
+
+    # Split body by boundary
+    parts = body_bytes.split(boundary_bytes)
+
+    for part in parts:
+        if not part or part == b"--\r\n" or part == b"--":
+            continue
+
+        # Separate headers from content
+        header_end = part.find(b"\r\n\r\n")
+        if header_end == -1:
+            continue
+
+        header_section = part[:header_end].decode("utf-8", errors="replace")
+        content = part[header_end + 4:]
+
+        # Remove trailing \r\n
+        if content.endswith(b"\r\n"):
+            content = content[:-2]
+
+        # Check if this part has a filename (it's a file upload)
+        filename = None
+        is_file_field = False
+        for line in header_section.split("\r\n"):
+            if "Content-Disposition" in line and 'name="image"' in line:
+                is_file_field = True
+                # Extract filename
+                if "filename=" in line:
+                    fn_start = line.index("filename=") + len("filename=")
+                    fn_str = line[fn_start:].strip()
+                    if fn_str.startswith('"'):
+                        fn_end = fn_str.index('"', 1)
+                        filename = fn_str[1:fn_end]
+                    else:
+                        filename = fn_str.split(";")[0].strip()
+
+        if is_file_field and filename:
+            return {"filename": filename, "content": content}
+
+    return None
+
+
+def handle_admin_upload(path_parts, body, headers=None, raw_body=None):
+    """POST /api/admin/upload - upload an image file."""
+    content_type = ""
+    if headers:
+        content_type = headers.get("Content-Type", "") or headers.get("content-type", "")
+
+    if not raw_body:
+        return (400, {"error": "No file data received"})
+
+    if len(raw_body) > MAX_UPLOAD_SIZE:
+        return (400, {"error": "File too large (max 5MB)"})
+
+    result = parse_multipart(raw_body, content_type)
+    if not result:
+        return (400, {"error": "Invalid file upload"})
+
+    filename = result["filename"]
+    content = result["content"]
+
+    # Validate extension
+    ext = ""
+    if "." in filename:
+        ext = "." + filename.rsplit(".", 1)[1].lower()
+
+    if ext not in ALLOWED_EXTENSIONS:
+        return (400, {"error": "Extension non autorisee. Formats acceptes: jpg, jpeg, png, gif, webp"})
+
+    # Generate unique filename
+    unique_name = secrets.token_hex(8) + ext
+    save_path = UPLOAD_DIR / unique_name
+
+    os.makedirs(str(UPLOAD_DIR), exist_ok=True)
+
+    with open(str(save_path), "wb") as f:
+        f.write(content)
+
+    return (200, {"url": "/static/uploads/" + unique_name})
 
 
 def handle_get_giveaways(path_parts, body, headers=None):
@@ -87,12 +194,44 @@ def handle_participate(path_parts, body, headers=None):
     username = body["username"]
     email = body["email"]
 
+    # Anti-fraud: extract IP and fingerprint
+    ip_address = ""
+    if headers:
+        ip_address = headers.get("X-Forwarded-For", "") or headers.get("X-Real-Ip", "") or ""
+        # Take first IP if X-Forwarded-For has multiple
+        if "," in ip_address:
+            ip_address = ip_address.split(",")[0].strip()
+
+    fingerprint = body.get("fingerprint", "")
+
+    # Check for duplicate participation by device/IP
+    if ip_address or fingerprint:
+        if database.check_duplicate_participation(giveaway_id, ip_address, fingerprint):
+            return (400, {"error": "Vous avez deja participe a ce giveaway depuis cet appareil"})
+
     user = database.get_or_create_user(username, email)
 
     try:
         ticket = database.create_ticket(user["id"], giveaway_id)
     except ValueError:
         return (400, {"error": "Vous participez deja a ce giveaway"})
+
+    # Record fingerprint for anti-fraud
+    if ip_address or fingerprint:
+        database.record_participation_fingerprint(giveaway_id, user["id"], ip_address, fingerprint)
+
+    # PAYMENT: For now, participation is free (simulation mode)
+    # When ready, uncomment and add Stripe:
+    # import stripe
+    # stripe.api_key = os.environ.get('STRIPE_SECRET_KEY')
+    # session = stripe.checkout.Session.create(
+    #     payment_method_types=['card'],
+    #     line_items=[{'price_data': {'currency': 'eur', 'product_data': {'name': f'Participation: {giveaway["title"]}'}, 'unit_amount': 100}, 'quantity': 1}],
+    #     mode='payment',
+    #     success_url=f'{BASE_URL}/#/giveaway/{giveaway_id}?payment=success',
+    #     cancel_url=f'{BASE_URL}/#/giveaway/{giveaway_id}?payment=cancel',
+    # )
+    # return (200, {"checkout_url": session.url})
 
     return (201, {
         "ticket": ticket,
@@ -226,7 +365,7 @@ def handle_admin_get_participants(path_parts, body, headers=None):
     return (200, participants)
 
 
-def route_request(method, path_parts, body, headers=None):
+def route_request(method, path_parts, body, headers=None, raw_body=None):
     """Route a request to the appropriate handler.
 
     Path parts are split from URL like:
@@ -273,6 +412,10 @@ def route_request(method, path_parts, body, headers=None):
     if len(path_parts) >= 2 and path_parts[1] == "admin":
         if not check_admin_auth(headers):
             return (401, {"error": "Unauthorized"})
+
+        # POST /api/admin/upload
+        if method == "POST" and path_str == "api/admin/upload":
+            return handle_admin_upload(path_parts, body, headers, raw_body=raw_body)
 
         # GET /api/admin/giveaways
         if method == "GET" and path_str == "api/admin/giveaways":

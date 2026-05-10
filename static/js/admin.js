@@ -76,12 +76,15 @@
       const list = Array.isArray(giveaways) ? giveaways : [];
 
       container.innerHTML =
+        '<div style="margin-bottom:1rem"><button class="btn btn-secondary btn-sm" onclick="window.adminRefreshList()">Rafraichir</button></div>' +
         '<table class="admin-table">' +
-          '<thead><tr><th>ID</th><th>Titre</th><th>Prix</th><th>Participants</th><th>Statut</th><th>Actions</th></tr></thead>' +
+          '<thead><tr><th>ID</th><th>Image</th><th>Titre</th><th>Prix</th><th>Participants</th><th>Statut</th><th>Actions</th></tr></thead>' +
           '<tbody>' +
             list.map(function(g) {
+              var thumbSrc = g.image_url || '/static/images/placeholder.svg';
               return '<tr>' +
                 '<td data-label="ID">' + esc(g.id) + '</td>' +
+                '<td data-label="Image"><img src="' + esc(thumbSrc) + '" style="width:40px;height:40px;object-fit:cover;border-radius:4px" onerror="this.src=\'/static/images/placeholder.svg\'"></td>' +
                 '<td data-label="Titre">' + esc(g.title) + '</td>' +
                 '<td data-label="Prix">' + esc(g.price || 0) + ' EUR</td>' +
                 '<td data-label="Participants">' + esc(g.current_participants || 0) + '</td>' +
@@ -103,6 +106,10 @@
     }
   }
 
+  window.adminRefreshList = function() {
+    renderAdminList();
+  };
+
   function renderAdminCreate() {
     const container = document.getElementById('admin-content');
     container.innerHTML =
@@ -110,7 +117,11 @@
         '<div class="form-group"><label>Titre</label><input type="text" id="adm-title" required></div>' +
         '<div class="form-group"><label>Description</label><textarea id="adm-desc"></textarea></div>' +
         '<div class="form-group"><label>Prix (valeur du produit)</label><input type="number" id="adm-price" step="0.01" required></div>' +
-        '<div class="form-group"><label>URL Image</label><input type="text" id="adm-image" placeholder="https://..."></div>' +
+        '<div class="form-group"><label>Image du produit</label>' +
+          '<input type="file" id="adm-image-file" accept="image/*" style="margin-bottom:0.5rem">' +
+          '<div id="adm-image-preview" style="margin:0.5rem 0"></div>' +
+          '<input type="text" id="adm-image" placeholder="ou coller un lien URL (https://...)">' +
+        '</div>' +
         '<div class="form-group"><label>URL Source (produit original)</label><input type="text" id="adm-source" placeholder="https://..."></div>' +
         '<div class="form-group"><label>Etat du produit</label>' +
           '<select id="adm-condition"><option value="neuf">Neuf</option><option value="comme neuf">Comme neuf</option><option value="bon etat">Bon etat</option><option value="correct">Correct</option></select>' +
@@ -120,14 +131,38 @@
         '<button type="submit" class="btn btn-primary">Creer le giveaway</button>' +
       '</form>';
 
+    // Handle file preview
+    document.getElementById('adm-image-file').addEventListener('change', function() {
+      var preview = document.getElementById('adm-image-preview');
+      if (this.files && this.files[0]) {
+        preview.innerHTML = '<img src="' + URL.createObjectURL(this.files[0]) + '" style="max-width:100px;max-height:100px;border-radius:4px">';
+      } else {
+        preview.innerHTML = '';
+      }
+    });
+
     document.getElementById('admin-create-form').addEventListener('submit', async function(e) {
       e.preventDefault();
       var feedback = document.getElementById('admin-create-feedback');
+      var imageUrl = document.getElementById('adm-image').value.trim();
+      var fileInput = document.getElementById('adm-image-file');
+
+      // Upload file if selected
+      if (fileInput.files && fileInput.files[0]) {
+        try {
+          feedback.innerHTML = '<div style="color:var(--text-secondary)">Upload de l\'image...</div>';
+          imageUrl = await uploadImage(fileInput.files[0]);
+        } catch (err) {
+          feedback.innerHTML = '<div class="form-error">Erreur upload: ' + esc(err.message) + '</div>';
+          return;
+        }
+      }
+
       var data = {
         title: document.getElementById('adm-title').value.trim(),
         description: document.getElementById('adm-desc').value.trim(),
         price: parseFloat(document.getElementById('adm-price').value) || 0,
-        image_url: document.getElementById('adm-image').value.trim(),
+        image_url: imageUrl,
         source_url: document.getElementById('adm-source').value.trim(),
         condition: document.getElementById('adm-condition').value,
         end_time: document.getElementById('adm-end').value || null
@@ -142,10 +177,28 @@
         await adminApi('/api/admin/giveaways', { method: 'POST', body: JSON.stringify(data) });
         feedback.innerHTML = '<div class="success-msg">Giveaway cree avec succes !</div>';
         this.reset();
+        document.getElementById('adm-image-preview').innerHTML = '';
+        // Auto-switch to list tab
+        setTimeout(function() { currentAdminTab = 'list'; window.renderAdminPage(); }, 1000);
       } catch (err) {
         feedback.innerHTML = '<div class="form-error">' + esc(err.message) + '</div>';
       }
     });
+  }
+
+  async function uploadImage(file) {
+    var token = getAdminToken();
+    var formData = new FormData();
+    formData.append('image', file);
+
+    var res = await fetch('/api/admin/upload', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token },
+      body: formData
+    });
+    var data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erreur upload');
+    return data.url;
   }
 
   async function renderAdminWinners() {
@@ -276,7 +329,11 @@
           '<div class="form-group"><label>Titre</label><input type="text" id="edit-title" value="' + esc(g.title || '') + '" required></div>' +
           '<div class="form-group"><label>Description</label><textarea id="edit-desc">' + esc(g.description || '') + '</textarea></div>' +
           '<div class="form-group"><label>Prix (valeur du produit)</label><input type="number" id="edit-price" step="0.01" value="' + esc(g.price || 0) + '" required></div>' +
-          '<div class="form-group"><label>URL Image</label><input type="text" id="edit-image" value="' + esc(g.image_url || '') + '" placeholder="https://..."></div>' +
+          '<div class="form-group"><label>Image du produit</label>' +
+            '<input type="file" id="edit-image-file" accept="image/*" style="margin-bottom:0.5rem">' +
+            '<div id="edit-image-preview" style="margin:0.5rem 0">' + (g.image_url ? '<img src="' + esc(g.image_url) + '" style="max-width:100px;max-height:100px;border-radius:4px">' : '') + '</div>' +
+            '<input type="text" id="edit-image" value="' + esc(g.image_url || '') + '" placeholder="ou coller un lien URL (https://...)">' +
+          '</div>' +
           '<div class="form-group"><label>URL Source (produit original)</label><input type="text" id="edit-source" value="' + esc(g.source_url || '') + '" placeholder="https://..."></div>' +
           '<div class="form-group"><label>Etat du produit</label>' +
             '<select id="edit-condition">' +
@@ -299,14 +356,36 @@
           '<button type="submit" class="btn btn-primary">Sauvegarder</button>' +
         '</form>';
 
+      // Handle file preview
+      document.getElementById('edit-image-file').addEventListener('change', function() {
+        var preview = document.getElementById('edit-image-preview');
+        if (this.files && this.files[0]) {
+          preview.innerHTML = '<img src="' + URL.createObjectURL(this.files[0]) + '" style="max-width:100px;max-height:100px;border-radius:4px">';
+        }
+      });
+
       document.getElementById('admin-edit-form').addEventListener('submit', async function(e) {
         e.preventDefault();
         var feedback = document.getElementById('admin-edit-feedback');
+        var imageUrl = document.getElementById('edit-image').value.trim();
+        var fileInput = document.getElementById('edit-image-file');
+
+        // Upload file if selected
+        if (fileInput.files && fileInput.files[0]) {
+          try {
+            feedback.innerHTML = '<div style="color:var(--text-secondary)">Upload de l\'image...</div>';
+            imageUrl = await uploadImage(fileInput.files[0]);
+          } catch (err) {
+            feedback.innerHTML = '<div class="form-error">Erreur upload: ' + esc(err.message) + '</div>';
+            return;
+          }
+        }
+
         var data = {
           title: document.getElementById('edit-title').value.trim(),
           description: document.getElementById('edit-desc').value.trim(),
           price: parseFloat(document.getElementById('edit-price').value) || 0,
-          image_url: document.getElementById('edit-image').value.trim(),
+          image_url: imageUrl,
           source_url: document.getElementById('edit-source').value.trim(),
           condition: document.getElementById('edit-condition').value,
           max_participants: parseInt(document.getElementById('edit-max-participants').value) || null,

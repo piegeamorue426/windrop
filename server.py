@@ -22,6 +22,7 @@ MIME_TYPES = {
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
     ".gif": "image/gif",
+    ".webp": "image/webp",
     ".ico": "image/x-icon",
     ".woff": "font/woff",
     ".woff2": "font/woff2",
@@ -69,7 +70,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         content_type = MIME_TYPES.get(ext, "application/octet-stream")
 
         try:
-            if ext in (".png", ".jpg", ".jpeg", ".gif", ".ico", ".woff", ".woff2"):
+            if ext in (".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".woff", ".woff2"):
                 with open(file_path, "rb") as f:
                     content = f.read()
             else:
@@ -94,28 +95,35 @@ class RequestHandler(BaseHTTPRequestHandler):
         return parts, path
 
     def read_body(self):
-        """Read and parse JSON request body."""
+        """Read and parse JSON request body. Returns (parsed_json, raw_bytes)."""
         content_length = int(self.headers.get("Content-Length", 0))
         if content_length == 0:
-            return None
+            return None, None
         body = self.rfile.read(content_length)
+        content_type = self.headers.get("Content-Type", "")
+
+        # If multipart, don't parse as JSON
+        if "multipart/form-data" in content_type:
+            return None, body
+
         try:
-            return json.loads(body.decode("utf-8"))
+            return json.loads(body.decode("utf-8")), body
         except (json.JSONDecodeError, UnicodeDecodeError):
-            return None
+            return None, body
 
     def handle_api_request(self, method):
         """Handle an API request."""
         parts, path = self.parse_path()
         body = None
+        raw_body = None
         if method in ("POST", "PUT"):
-            body = self.read_body()
+            body, raw_body = self.read_body()
 
         # Pass headers as a dict to route_request for auth checks
         headers = {key: self.headers[key] for key in self.headers}
 
         try:
-            status_code, response_data = routes.route_request(method, parts, body, headers)
+            status_code, response_data = routes.route_request(method, parts, body, headers, raw_body=raw_body)
             self.send_json_response(status_code, response_data)
         except Exception as e:
             print(f"Error handling {method} {path}: {e}")

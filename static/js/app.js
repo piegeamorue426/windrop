@@ -167,8 +167,8 @@
       app.innerHTML =
         '<div class="page">' +
           '<section class="hero">' +
-            '<h1><span class="highlight">1 euro</span> = 1 chance de gagner<br>des produits reels</h1>' +
-            '<p>Participez a nos giveaways pour seulement 1 euro. Tirage au sort transparent et livraison garantie.</p>' +
+            '<h1><span class="highlight">Gagnez des produits tech</span><br>pour seulement 1 euro</h1>' +
+            '<p>Participez a nos giveaways pour seulement 1 euro. Selection du gagnant transparente et livraison garantie.</p>' +
             '<a href="#/giveaways" class="btn btn-primary">Voir les giveaways</a>' +
             '<div class="hero-stats">' +
               '<div class="stat-item"><div class="stat-number" data-target="' + escapeHtml(stats.total_giveaways || 0) + '">0</div><div class="stat-label">Giveaways</div></div>' +
@@ -253,10 +253,11 @@
             '<h3>Regles du giveaway</h3>' +
             '<ul>' +
               '<li>Participation unique pour 1 euro</li>' +
-              '<li>Tirage au sort aleatoire et transparent</li>' +
-              '<li>Le gagnant est contacte par email</li>' +
+              '<li>Une seule participation par personne et par giveaway</li>' +
+              '<li>Le gagnant est selectionne de maniere aleatoire et securisee</li>' +
+              '<li>Le gagnant est contacte par email et annonce sur la page Gagnants</li>' +
               '<li>Livraison offerte en France metropolitaine</li>' +
-              '<li>Resultat annonce a la date de fin</li>' +
+              '<li>Preuve d\'envoi visible pour chaque lot</li>' +
             '</ul>' +
           '</div>' +
         '</div>';
@@ -266,6 +267,25 @@
     }
   }
 
+  // Generate browser fingerprint for anti-fraud
+  function generateFingerprint() {
+    var data = [
+      screen.width, screen.height, screen.colorDepth,
+      navigator.language, navigator.platform,
+      new Date().getTimezoneOffset(),
+      navigator.hardwareConcurrency || '',
+      navigator.userAgent
+    ].join('|');
+    // Simple hash
+    var hash = 0;
+    for (var i = 0; i < data.length; i++) {
+      var char = data.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return 'fp_' + Math.abs(hash).toString(36);
+  }
+
   // Participate Modal
   window.showParticipateModal = function(giveawayId) {
     const overlay = document.createElement('div');
@@ -273,14 +293,15 @@
     overlay.innerHTML =
       '<div class="modal">' +
         '<h2>Participer au giveaway</h2>' +
-        '<p>Entrez vos informations pour participer (1 euro)</p>' +
+        '<p>Entrez vos informations pour participer</p>' +
         '<div class="form-group"><label>Nom d\'utilisateur</label><input type="text" id="modal-username" placeholder="Votre pseudo"></div>' +
         '<div class="form-group"><label>Email</label><input type="email" id="modal-email" placeholder="votre@email.com"></div>' +
         '<div id="modal-error" class="form-error" style="display:none"></div>' +
         '<div id="modal-success" style="display:none"></div>' +
+        '<p style="font-size:0.85rem;color:var(--text-secondary);margin-top:0.5rem">Le paiement de 1 euro sera active prochainement.</p>' +
         '<div class="modal-actions">' +
           '<button class="btn btn-secondary" id="modal-cancel">Annuler</button>' +
-          '<button class="btn btn-primary" id="modal-confirm">Payer 1 euro</button>' +
+          '<button class="btn btn-primary" id="modal-confirm">Participer (gratuit pendant le lancement)</button>' +
         '</div>' +
       '</div>';
 
@@ -308,9 +329,10 @@
 
       try {
         errorEl.style.display = 'none';
+        var fingerprint = generateFingerprint();
         const result = await api('/api/giveaways/' + giveawayId + '/participate', {
           method: 'POST',
-          body: JSON.stringify({ username: username, email: email })
+          body: JSON.stringify({ username: username, email: email, fingerprint: fingerprint })
         });
         successEl.innerHTML = '<div class="success-msg">Participation confirmee ! Bonne chance ' + escapeHtml(username) + ' !</div>';
         successEl.style.display = 'block';
@@ -359,9 +381,9 @@
     const app = getApp();
     const steps = [
       { num: '1', title: 'Choisir un giveaway', desc: 'Parcourez nos giveaways et choisissez le produit qui vous interesse.' },
-      { num: '2', title: 'Payer 1 euro', desc: 'La participation coute seulement 1 euro. Paiement securise et rapide.' },
-      { num: '3', title: 'Attendre le tirage', desc: 'Un compteur indique le temps restant avant le tirage au sort.' },
-      { num: '4', title: 'Tirage au sort', desc: 'Le gagnant est selectionne de maniere aleatoire et transparente.' },
+      { num: '2', title: 'Valider sa participation', desc: 'Une participation coute 1 euro. Paiement securise. Vous ne pouvez participer qu\'une seule fois par giveaway.' },
+      { num: '3', title: 'Attendre la selection', desc: 'Un compteur indique le temps restant avant la selection du gagnant.' },
+      { num: '4', title: 'Selection du gagnant', desc: 'Le gagnant est selectionne de maniere aleatoire et securisee.' },
       { num: '5', title: 'Livraison gratuite', desc: 'Le gagnant recoit son produit livre gratuitement en France.' }
     ];
 
@@ -384,13 +406,14 @@
   function renderFAQ() {
     const app = getApp();
     const questions = [
-      { q: 'Est-ce legal ?', a: 'Oui, notre plateforme respecte la legislation francaise sur les jeux concours. Chaque tirage est aleatoire et transparent.' },
-      { q: 'Comment sont choisis les gagnants ?', a: 'Les gagnants sont selectionnes par un algorithme de tirage au sort cryptographiquement securise. Chaque participant a exactement la meme chance de gagner.' },
+      { q: 'Comment fonctionne la selection ?', a: 'Le gagnant est selectionne par un algorithme aleatoire securise. Chaque participant a exactement la meme chance de gagner, quel que soit le moment de sa participation.' },
+      { q: 'Pourquoi seulement 1 euro ?', a: 'Nous voulons que tout le monde puisse tenter sa chance. Le prix de 1 euro couvre les frais de fonctionnement et permet d\'acheter les produits mis en jeu.' },
+      { q: 'Comment sont choisis les gagnants ?', a: 'Les gagnants sont selectionnes par un algorithme cryptographiquement securise. Chaque participant a exactement la meme chance de gagner.' },
       { q: 'C\'est securise ?', a: 'Nous utilisons des protocoles de securite standards pour proteger vos donnees. Aucune information bancaire n\'est stockee sur nos serveurs.' },
       { q: 'Combien de chances ai-je de gagner ?', a: 'Chaque participation donne une chance egale. Plus le nombre de participants est faible, plus vos chances sont elevees.' },
-      { q: 'Quand a lieu le tirage ?', a: 'Chaque giveaway a une date de fin affichee. Le tirage a lieu automatiquement a cette date. Un compteur est visible sur chaque giveaway.' },
+      { q: 'Quand a lieu la selection ?', a: 'Chaque giveaway a une date de fin affichee. La selection a lieu automatiquement a cette date. Un compteur est visible sur chaque giveaway.' },
       { q: 'Comment recevoir mon lot ?', a: 'Si vous gagnez, vous recevrez un email avec les instructions. La livraison est gratuite en France metropolitaine et le suivi est disponible dans votre espace.' },
-      { q: 'Puis-je participer plusieurs fois ?', a: 'Non, chaque utilisateur ne peut participer qu\'une seule fois par giveaway.' }
+      { q: 'Puis-je participer plusieurs fois ?', a: 'Non, une seule participation par personne et par giveaway. Notre systeme detecte automatiquement les tentatives multiples.' }
     ];
 
     app.innerHTML =

@@ -6,6 +6,8 @@ import secrets
 from datetime import datetime, timezone
 from pathlib import Path
 
+UPLOAD_DIR = Path(__file__).parent / "static" / "uploads"
+
 DB_PATH = Path(os.environ.get("WINDROP_DB_PATH", str(Path(__file__).parent / "windrop.db")))
 
 
@@ -19,6 +21,9 @@ def get_connection():
 
 def init_db():
     """Create all database tables."""
+    # Ensure uploads directory exists
+    os.makedirs(str(UPLOAD_DIR), exist_ok=True)
+
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -83,6 +88,19 @@ def init_db():
             email TEXT NOT NULL,
             message TEXT NOT NULL,
             created_at TEXT
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS participation_fingerprints (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            giveaway_id INTEGER NOT NULL,
+            ip_address TEXT,
+            fingerprint TEXT,
+            user_id INTEGER NOT NULL,
+            created_at TEXT,
+            FOREIGN KEY (giveaway_id) REFERENCES giveaways(id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
         )
     """)
 
@@ -390,3 +408,33 @@ def get_all_contact_messages():
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+
+def check_duplicate_participation(giveaway_id, ip_address, fingerprint):
+    """Check if the same IP or fingerprint already participated in this giveaway.
+
+    Returns True if duplicate detected, False otherwise.
+    """
+    conn = get_connection()
+    cursor = conn.execute(
+        """SELECT id FROM participation_fingerprints
+           WHERE giveaway_id = ? AND (ip_address = ? OR fingerprint = ?)""",
+        (giveaway_id, ip_address, fingerprint)
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return row is not None
+
+
+def record_participation_fingerprint(giveaway_id, user_id, ip_address, fingerprint):
+    """Record participation fingerprint for anti-fraud tracking."""
+    conn = get_connection()
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        """INSERT INTO participation_fingerprints
+           (giveaway_id, user_id, ip_address, fingerprint, created_at)
+           VALUES (?, ?, ?, ?, ?)""",
+        (giveaway_id, user_id, ip_address, fingerprint, now)
+    )
+    conn.commit()
+    conn.close()
