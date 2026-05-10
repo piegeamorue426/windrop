@@ -210,5 +210,51 @@ class TestDatabase(unittest.TestCase):
         self.assertIn("part2", usernames)
 
 
+    def test_get_recent_participations_by_ip(self):
+        """Test counting recent participations by IP."""
+        giveaway = database.create_giveaway({
+            "title": "IP Count Test",
+            "price": 5.0,
+        })
+        user1 = database.get_or_create_user("ipuser1", "ip1@test.com")
+        user2 = database.get_or_create_user("ipuser2", "ip2@test.com")
+
+        # Record some fingerprints from same IP
+        database.record_participation_fingerprint(giveaway["id"], user1["id"], "1.2.3.4", "fp1")
+        database.record_participation_fingerprint(giveaway["id"], user2["id"], "1.2.3.4", "fp2")
+
+        # Different IP
+        database.record_participation_fingerprint(giveaway["id"], user1["id"], "5.6.7.8", "fp3")
+
+        count = database.get_recent_participations_by_ip("1.2.3.4")
+        self.assertEqual(count, 2)
+
+        count_other = database.get_recent_participations_by_ip("5.6.7.8")
+        self.assertEqual(count_other, 1)
+
+        count_none = database.get_recent_participations_by_ip("9.9.9.9")
+        self.assertEqual(count_none, 0)
+
+    def test_check_fingerprint_multi_account(self):
+        """Test counting distinct users for a fingerprint."""
+        giveaway = database.create_giveaway({
+            "title": "Multi Account Count Test",
+            "price": 5.0,
+        })
+        # Record same fingerprint for multiple users
+        for i in range(4):
+            user = database.get_or_create_user(f"fpuser{i}", f"fpuser{i}@test.com")
+            database.record_participation_fingerprint(
+                giveaway["id"], user["id"], f"10.0.0.{i}", "same_fp"
+            )
+
+        count = database.check_fingerprint_multi_account("same_fp")
+        self.assertEqual(count, 4)
+
+        # Different fingerprint should return 0
+        count_other = database.check_fingerprint_multi_account("other_fp")
+        self.assertEqual(count_other, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

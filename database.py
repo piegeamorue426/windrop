@@ -464,12 +464,14 @@ def get_recent_participations_by_ip(ip_address, hours=1):
     return count
 
 
-def check_fingerprint_multi_account(fingerprint):
-    """Return the count of distinct user_ids associated with a fingerprint."""
+def check_fingerprint_multi_account(fingerprint, hours=24):
+    """Count distinct user_ids associated with a fingerprint in the last N hours."""
+    from datetime import timedelta
     conn = get_connection()
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
     cursor = conn.execute(
-        "SELECT COUNT(DISTINCT user_id) as count FROM participation_fingerprints WHERE fingerprint = ?",
-        (fingerprint,)
+        "SELECT COUNT(DISTINCT user_id) as count FROM participation_fingerprints WHERE fingerprint = ? AND created_at > ?",
+        (fingerprint, cutoff)
     )
     count = cursor.fetchone()["count"]
     conn.close()

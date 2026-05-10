@@ -275,7 +275,7 @@ def handle_participate(path_parts, body, headers=None):
     # Multi-account detection
     if fingerprint:
         multi_count = database.check_fingerprint_multi_account(fingerprint)
-        if multi_count >= 3:
+        if multi_count >= 5:
             return (400, {"error": "Activite suspecte detectee sur cet appareil."})
 
     # Check for duplicate participation by device/IP

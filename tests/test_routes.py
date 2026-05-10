@@ -2,6 +2,7 @@
 
 import sys
 import unittest
+from datetime import timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -217,6 +218,98 @@ class TestRoutes(unittest.TestCase):
 
         status, data = routes.route_request("PUT", path_parts, body, headers=None)
         self.assertEqual(status, 401)
+
+
+    def test_email_validation_valid(self):
+        """Test that valid emails pass validation."""
+        valid_emails = ['test@example.com', 'user@domain.co.uk', 'a.b@c.d.e']
+        for email in valid_emails:
+            self.assertTrue(routes._is_valid_email(email), f"{email} should be valid")
+
+    def test_email_validation_invalid(self):
+        """Test that invalid emails fail validation."""
+        invalid_emails = [
+            'noemail', 'no@dot', 'space @test.com', '@domain.com',
+            'user@.com', 'user@domain.', '', 'a@@b.com'
+        ]
+        for email in invalid_emails:
+            self.assertFalse(routes._is_valid_email(email), f"{email} should be invalid")
+
+    def test_rate_limiting_blocks_excessive_participations(self):
+        """Test that rate limiting blocks after 10 participations from same IP."""
+        giveaway = database.create_giveaway({
+            "title": "Rate Limit Test",
+            "price": 5.0,
+        })
+
+        # Record 10 fingerprints from the same IP to simulate 10 participations
+        for i in range(10):
+            user = database.get_or_create_user(f"rateuser{i}", f"rate{i}@test.com")
+            database.record_participation_fingerprint(
+                giveaway["id"], user["id"], "192.168.1.100", f"fp_{i}"
+            )
+
+        # 11th participation from same IP should be blocked
+        path_parts = ["api", "giveaways", str(giveaway["id"]), "participate"]
+        body = {"username": "rateuser_blocked", "email": "blocked@test.com"}
+        headers = {"X-Forwarded-For": "192.168.1.100"}
+
+        status, data = routes.route_request("POST", path_parts, body, headers=headers)
+        self.assertEqual(status, 429)
+        self.assertIn("Trop de participations", data["error"])
+
+    def test_multi_account_detection(self):
+        """Test that multi-account detection blocks after 5+ distinct users with same fingerprint."""
+        # Create multiple giveaways and participate with different users but same fingerprint
+        for i in range(5):
+            giveaway = database.create_giveaway({
+                "title": f"Multi Account Test {i}",
+                "price": 5.0,
+            })
+            user = database.get_or_create_user(f"multiuser{i}", f"multi{i}@test.com")
+            database.record_participation_fingerprint(
+                giveaway["id"], user["id"], f"10.0.0.{i}", "shared_fingerprint_xyz"
+            )
+
+        # Next participation with same fingerprint should be blocked
+        new_giveaway = database.create_giveaway({
+            "title": "Multi Account Block Test",
+            "price": 5.0,
+        })
+        path_parts = ["api", "giveaways", str(new_giveaway["id"]), "participate"]
+        body = {"username": "multiuser_blocked", "email": "multiblocked@test.com",
+                "fingerprint": "shared_fingerprint_xyz"}
+
+        status, data = routes.route_request("POST", path_parts, body)
+        self.assertEqual(status, 400)
+        self.assertIn("suspecte", data["error"])
+
+    def test_rate_limiting_allows_normal_usage(self):
+        """Test that rate limiting allows fewer than 10 participations."""
+        # Record 5 fingerprints from the same IP in various giveaways
+        for i in range(5):
+            giveaway = database.create_giveaway({
+                "title": f"Normal Rate Giveaway {i}",
+                "price": 5.0,
+            })
+            user = database.get_or_create_user(f"normaluser{i}", f"normal{i}@test.com")
+            database.record_participation_fingerprint(
+                giveaway["id"], user["id"], "10.20.30.40", f"normalfp_{i}"
+            )
+
+        # Create a fresh giveaway for the next participation
+        new_giveaway = database.create_giveaway({
+            "title": "Normal Rate Final",
+            "price": 5.0,
+        })
+
+        # Next participation from same IP should still succeed
+        path_parts = ["api", "giveaways", str(new_giveaway["id"]), "participate"]
+        body = {"username": "normaluser_ok", "email": "normalok@test.com"}
+        headers = {"X-Forwarded-For": "10.20.30.40"}
+
+        status, data = routes.route_request("POST", path_parts, body, headers=headers)
+        self.assertEqual(status, 201)
 
 
 if __name__ == "__main__":
