@@ -1,11 +1,14 @@
 """SQLite database module for Windrop giveaway platform."""
 
+import os
 import sqlite3
 import secrets
 from datetime import datetime, timezone
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "windrop.db"
+UPLOAD_DIR = Path(__file__).parent / "static" / "uploads"
+
+DB_PATH = Path(os.environ.get("WINDROP_DB_PATH", str(Path(__file__).parent / "windrop.db")))
 
 
 def get_connection():
@@ -18,6 +21,9 @@ def get_connection():
 
 def init_db():
     """Create all database tables."""
+    # Ensure uploads directory exists
+    os.makedirs(str(UPLOAD_DIR), exist_ok=True)
+
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -84,6 +90,29 @@ def init_db():
             created_at TEXT
         )
     """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS participation_fingerprints (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            giveaway_id INTEGER NOT NULL,
+            ip_address TEXT,
+            fingerprint TEXT,
+            user_id INTEGER NOT NULL,
+            created_at TEXT,
+            FOREIGN KEY (giveaway_id) REFERENCES giveaways(id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
+    # Performance indexes
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_giveaways_status ON giveaways(status)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_giveaways_created_at ON giveaways(created_at)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_tickets_user_giveaway ON tickets(user_id, giveaway_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_tickets_giveaway ON tickets(giveaway_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_winners_giveaway ON winners(giveaway_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_fingerprints_giveaway_ip ON participation_fingerprints(giveaway_id, ip_address)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_fingerprints_giveaway_fp ON participation_fingerprints(giveaway_id, fingerprint)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_fingerprints_ip_created ON participation_fingerprints(ip_address, created_at)")
 
     conn.commit()
     conn.close()
@@ -389,3 +418,61 @@ def get_all_contact_messages():
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+
+def check_duplicate_participation(giveaway_id, ip_address, fingerprint):
+    """Check if the same IP or fingerprint already participated in this giveaway.
+
+    Returns True if duplicate detected, False otherwise.
+    """
+    conn = get_connection()
+    cursor = conn.execute(
+        """SELECT id FROM participation_fingerprints
+           WHERE giveaway_id = ? AND (ip_address = ? OR fingerprint = ?)""",
+        (giveaway_id, ip_address, fingerprint)
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return row is not None
+
+
+def record_participation_fingerprint(giveaway_id, user_id, ip_address, fingerprint):
+    """Record participation fingerprint for anti-fraud tracking."""
+    conn = get_connection()
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        """INSERT INTO participation_fingerprints
+           (giveaway_id, user_id, ip_address, fingerprint, created_at)
+           VALUES (?, ?, ?, ?, ?)""",
+        (giveaway_id, user_id, ip_address, fingerprint, now)
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_recent_participations_by_ip(ip_address, hours=1):
+    """Count participations from a given IP in the last N hours."""
+    from datetime import timedelta
+    conn = get_connection()
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+    cursor = conn.execute(
+        "SELECT COUNT(*) as count FROM participation_fingerprints WHERE ip_address = ? AND created_at > ?",
+        (ip_address, cutoff)
+    )
+    count = cursor.fetchone()["count"]
+    conn.close()
+    return count
+
+
+def check_fingerprint_multi_account(fingerprint, hours=24):
+    """Count distinct user_ids associated with a fingerprint in the last N hours."""
+    from datetime import timedelta
+    conn = get_connection()
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+    cursor = conn.execute(
+        "SELECT COUNT(DISTINCT user_id) as count FROM participation_fingerprints WHERE fingerprint = ? AND created_at > ?",
+        (fingerprint, cutoff)
+    )
+    count = cursor.fetchone()["count"]
+    conn.close()
+    return count

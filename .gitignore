@@ -4,3 +4,5 @@ __pycache__/
 windrop.db
 tests/test_windrop.db
 *.db
+static/uploads/*
+!static/uploads/.gitkeep
